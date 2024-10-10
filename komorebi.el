@@ -9,7 +9,7 @@
 ;; Version: 0.0.1
 ;; Keywords: abbrev bib c calendar comm convenience data docs emulations extensions faces files frames games hardware help hypermedia i18n internal languages lisp local maint mail matching mouse multimedia news outlines processes terminals tex tools unix vc wp
 ;; Homepage: https://github.com/elyo/komorebi
-;; Package-Requires: ((emacs "28.1"))
+;; Package-Requires: ((emacs "29.1"))
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
@@ -34,51 +34,97 @@
 (defun komorebi-key-map-create ()
   "Define keymap for Komorebi."
   (let ((key-map (make-sparse-keymap)))
-    (define-key key-map (kbd "C-M-m") #'komorebi-minimize)
-    (define-key key-map (kbd "M-n") #'komorebi-cycle-focused-next)
-    (define-key key-map (kbd "M-p") #'komorebi-cycle-focused-previous)
-    (define-key key-map (kbd "C-M-u") #'komorebi-unstack)
-    (define-key key-map (kbd "C-M-n") #'komorebi-cycle-stacked-next)
-    (define-key key-map (kbd "C-M-p") #'komorebi-cycle-stacked-previous)
-    (define-key key-map (kbd "C-M-m") #'komorebi-toggle-monocle)
+    (define-key key-map (komorebi--kdb-get "i") #'komorebi-manage)
+    (define-key key-map (komorebi--kdb-get "i") #'komorebi-unmanage)
+    (define-key key-map (komorebi--kdb-get "u") #'komorebi-unstack)
+    (define-key key-map (komorebi--kdb-get "i") #'komorebi-minimize)
+    (define-key key-map (komorebi--kdb-get "f") #'komorebi-switch-focus)
+    (define-key key-map (komorebi--kdb-get "s") #'komorebi-switch-stack)
+    (define-key key-map (komorebi--kdb-get "w") #'komorebi-switch-workspace)
+    (define-key key-map (komorebi--kdb-get "m") #'komorebi-switch-monitor)
+    (define-key key-map (komorebi--kdb-get "o") #'komorebi-toggle-monocle)
+    (define-key key-map (komorebi--kdb-get "c r") #'komorebi-relace-config)
     key-map))
 
 ;; (add-to-list 'minor-mode-alist '(pydyn-python-mode " pydyn-python"))
 ;; (add-to-list 'minor-mode-map-alist (cons 'pydyn-python-mode pydyn-python-mode-map));;
 
-(defvar komorebi-cycle-directions
-  '("next" "previous")
+(defvar komorebi-cycle-directions '("Next" "Previous")
   "Cycle directions for Komorebi.")
 
-(defun komorebi--select-direction ()
-  "Return selected direction."
-  (completing-read "Direction: " komorebi-cycle-directions))
+(defun komorebi--is-cycle-direction (direction)
+  "Return non-nil if DIRECTION is an operation direction."
+  (seq-some (lambda (x) (string= (downcase x) direction))
+            komorebi-cycle-directions))
+
+(defvar komorebi-operation-directions '("Up" "Down" "Left" "Right")
+  "Operation directions for Komorebi.")
+
+(defun komorebi--is-operation-direction (direction)
+  "Return non-nil if DIRECTION is an operation direction."
+  (seq-some (lambda (x) (string= (downcase x) direction))
+            komorebi-operation-directions))
+
+
+(defun komorebi--seleced-direction ()
+  "Return selected direction. Either operation or cycle direction.
+PREFIX is used to specify the type of direction."
+  (downcase (completing-read
+             "Direction: "
+             (append komorebi-operation-directions
+                     komorebi-cycle-directions))))
+
+;;;###autoload
+(cl-defun komorebi-resize (direction)
+  "Resize window in DIRECTION.
+Horizontal (edge) is either left or right.
+Vertical   direction (edge) is either up or down."
+  (interactive "p")
+  (let ((direction (komorebi--select-direction direction)))
+    (komorebi-api-resize
+     direction  (if (equal direction "up") "increase" "decrease"))))
+
+(defun komorebi--select-direction (prefix)
+  "Return selected direction. Either operation or cycle direction.
+PREFIX is used to specify the type of direction."
+  (if (or (not (numberp prefix))
+          (< prefix 4) (> prefix 9))
+      (komorebi--seleced-direction)
+    (cond ((= prefix 4) "next")
+          ((= prefix 5) "previous")
+          ((= prefix 6) "left")
+          ((= prefix 7) "right")
+          ((= prefix 8) "up")
+          ((= prefix 9) "down")
+          (t (komorebi--seleced-direction)))))
+
+
+(defun komorebi-change-in (direction cycle-func operation-func)
+  "Cycle or move in DIRECTION with CYCLE-FUNC or OPERATION-FUNC."
+  (if (komorebi--is-cycle-direction direction)
+      (funcall cycle-func direction)
+    (funcall operation-func direction)))
 
 
 ;;;###autoload
-(defun komorebi-minimize ()
-  "Minimize EMACS window."
-  (interactive)
-  (komorebi-api-minimize))
+(defun komorebi-switch-focus (direction)
+  "Cycle through the focus to window in DIRECTION."
+  (interactive "p")
+  (let ((direction (komorebi--select-direction direction)))
+    (komorebi-change-in direction
+                        #'komorebi-api-cycle-focus
+                        #'komorebi-api-focus)))
+
 
 ;;;###autoload
-(defun komorebi-cycle-focused (direction)
-  "Cycle through the focused window in DIRECTION."
-  (interactive
-   (list (komorebi--select-direction)))
-  (komorebi-api-cycle-focus direction))
+(defun komorebi-switch-stack (direction)
+  "Stack the window with an other(s) in DIRECTION."
+  (interactive "p")
+  (let ((direction (komorebi--select-direction direction)))
+    (komorebi-change-in direction
+                        #'komorebi-api-cycle-stack
+                        #'komorebi-api-stack)))
 
-;;;###autoload
-(defun komorebi-cycle-focused-next ()
-  "Cycle through the focused window in order."
-  (interactive)
-  (komorebi-cycle-focused "next"))
-
-;;;###autoload
-(defun komorebi-cycle-focused-previous ()
-  "Cycle through the focused window in reverse order."
-  (interactive)
-  (komorebi-cycle-focused "previous"))
 
 ;;;###autoload
 (defun komorebi-unstack ()
@@ -87,89 +133,108 @@
   (komorebi-api-unstack))
 
 ;;;###autoload
-(defun komorebi-cycle-stacked-next ()
-  "Cycle through the stacked windows in order."
-  (interactive)
-  (komorebi-api-cycle-stack "next"))
+(defun komorebi-switch-workspace (direction)
+  "Cycle or move to the next workspace in DIRECTION."
+  (interactive "p")
+  (let ((direction (komorebi--select-direction direction)))
+    (komorebi-change-in direction
+                        #'komorebi-api-cycle-workspace
+                        #'komorebi-api-move-to-workspace)))
+
 
 ;;;###autoload
-(defun komorebi-cycle-stacked-previous ()
-  "Cycle through the stacked windows in reverse order."
-  (interactive)
-  (komorebi-api-cycle-stack "previous"))
+(defun komorebi-switch-monitor (direction)
+  "Cycle or move to monitor in DIRECTION."
+  (interactive "p")
+  (let ((direction (komorebi--select-direction direction)))
+    (komorebi-change-in direction
+                        #'komorebi-api-cycle-monitor
+                        #'komorebi-api-move-to-monitor)))
 
-;;;###autoload
-(defun komorebi-cycle-workspace-next ()
-  "Cycle from the EMACS workspace to next workspace."
-  (interactive)
-  (komorebi-api-cycle-workspace "next"))
-
-;;;###autoload
-(defun komorebi-cycle-workspace-previous ()
-  "Cycle from the EMACS workspace to previous workspace."
-  (interactive)
-  (komorebi-api-cycle-workspace "previous"))
-
-(defun komorebi--workspace-select ()
-  "Return selected workspace."
-  (completing-read "Workspace: " (komorebi-api-workspaces)))
-
-(defun komorebi-switch-to-workspace (workspace)
-  "Switch from the current workspace to WORKSPACE."
-  (interactive (list (komorebi--workspace-select)))
-  (komorebi-api-move-to-workspace workspace))
-
-(defun komorebi-send-to-workspace (workspace)
-  "Move EMACS to WORKSPACE."
-  (interactive (list (komorebi--workspace-select)))
-  (komorebi-api-send-to-workspace workspace))
-
-;;;###autoload
-(defun komorebi-cycle-monitor-next ()
-  "Cycle from monitor of EMACS to next monitor."
-  (interactive)
-  (komorebi-api-cycle-monitor "next"))
-
-;;;###autoload
-(defun komorebi-cycle-monitor-previous ()
-  "Cycle from monitor of EMACS to previous monitor."
-  (interactive)
-  (komorebi-api-cycle-monitor "previous"))
 
 ;;;###autoload
 (defun komorebi-toggle-monocle ()
-  "Toggle monocle mode (full screen) of EMACS."
-  (interactive)
-  (komorebi-api-toggle-monocle))
+  "Toggle monocle mode of current window."
+  (interactive '() (list 'komorebi-mode))
+  (komorebi-cli-toggle-monocle))
 
-(defcustom komorebi-config-files '("komorebi.json")
-  "List of static configuration files for Komorebi."
+
+;;;###autoload
+(defun komorebi-manage ()
+  "Activate Komorebi window management for EMACS X window."
+  (interactive)
+  (komorebi-api-manage))
+
+
+;;;###autoload
+(defun komorebi-unmanage ()
+  "Deactivate Komorebi window management for EMACS X window."
+  (interactive)
+  (komorebi-api-minimize))
+
+
+;;;###autoload
+(defun komorebi-minimize ()
+  "Minimize X window of EMACS."
+  (interactive)
+  (komorebi-api-minimize))
+
+
+(defun komorebi-is-started ()
+  "Return non-nil if Komorebi-server is started.
+Determines if Komorebi is running is by checking if static configuration is set."
+  (interactive)
+  (komorebi-current-config))
+
+
+(defun komorebi-current-config ()
+  "Return path to current Komorebi configuration."
+  (interactive)
+  (komorebi-api-configuration))
+
+
+(defcustom komorebi-configuration-files nil
+  "List of Komorebi configuration files."
   :type 'list
   :group 'komorebi)
 
+
 (defun komorebi--select-config ()
   "Return selected direction."
-  (unless komorebi-config-files
-    (error "`komorebi-config-files' is not set"))
-  (if (length= komorebi-config-files 1)
-      (car komorebi-config-files)
-    (completing-read "Config-File: " komorebi-config-files)))
+  (unless (komorebi-is-started)
+    (error "Komorebi is not running"))
+  (unless komorebi-configuration-files
+    (push (komorebi-current-config) komorebi-configuration-files))
+  (if (length= komorebi-configuration-files 1)
+      (car komorebi-configuration-files)
+    (completing-read "Select Config: " komorebi-configuration-files)))
+
+
+;;;###autoload
+(defun komorebi-reload-config ()
+  "Reload Komorebi configuration."
+  (interactive)
+  (komorebi-api-reload-configuration))
+
 
 ;;;###autoload
 (defun komorebi-replace-config (config)
-  "Replace Komorebi configuration with CONFIG."
+  "Replace Komorebi static configuration with CONFIG."
   (interactive (list (komorebi--select-config)))
-  (komorebi-api-replace-configuration config))
+  (unless (file-exists-p config)
+    (error "Configuration file %s does not exist" config))
+  (if (equal (komorebi-current-config) config)
+      (message "Current loaded path is equal... Configuration nor reload.")
+    (komorebi-api-replace-configuration config)))
+
 
 ;;;###autoload
 (cl-defun komorebi-restart (&optional &key whkd ahk bar)
   "Restart Komorebi with option WHKD, AHK and/or BAR.
 Only either WHKD or AHK can be set at a time."
   (interactive (list :whkd nil :ahk t :bar t))
-  (let ((monitor (komorebi-api-current-monitor))
-        (workspace (komorebi-api-current-workspace)))
-    (komorebi-api-stop)
-    (komorebi-api-start :whkd whkd :ahk ahk :bar bar)))
+  (komorebi-api-stop)
+  (komorebi-api-start :whkd whkd :ahk ahk :bar bar))
 
 
 ;;;###autoload

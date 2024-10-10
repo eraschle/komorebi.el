@@ -22,6 +22,7 @@
 (require 'view)
 (require 'subr-x)
 (require 'org)
+(require 'komorebi-web)
 
 (defcustom komorebi-api-executable "/mnt/c/workspace/komorebi/target/release/komorebic.exe"
   "The path to the komorebi executable."
@@ -33,27 +34,21 @@
   :type 'string
   :group 'komorebi-api)
 
-(defcustom komorebi-api-docs-url "https://lgug2z.github.io/komorebi/cli"
-  "The version of komorebi."
-  :type 'string
-  :group 'komorebi-api)
-
-
-(defun komorebi-api-browse-documentation (command)
-  "Browse the online documentation for COMMAND at `komorebi-api-docs-url'."
-  (interactive "sCommand: ")
-  (browse-url (format "%s/%s.html" komorebi-api-docs-url command)))
-
 
 (defvar komorebi-api-help-buffer-name "*komorebi-api-help*"
   "The name of the buffer to display command help.")
 
+
+(defun komorebi-api--clean-control-char (value)
+  "Return VALUE cleaned of control characters and double quotes."
+  (string-trim value "[ \t\n\r\"]*" "[ \t\n\r\"]*"))
+
+
 (defun komorebi-api--args-get (args)
   "Return string of ARGS."
-  (string-join (seq-filter (lambda (arg)
-                             (not (or (null arg) (string-empty-p arg))))
-                           args)
-               " "))
+  (string-join
+   (seq-filter (lambda (arg) (not (or (null arg) (string-empty-p arg)))) args)
+   " "))
 
 (defun komorebi-api--help-messages (help-message)
   "Return a list of help messages from HELP-MESSAGE."
@@ -75,16 +70,34 @@
         (komorebi-api--help-success command command-help 2)
         (insert "\n")))))
 
+
+(defun komorebi-api--help-insert-src-block (command)
+  "Insert SRC-BLOCK of COMMAND into current buffer."
+  (let ((exe (file-name-nondirectory komorebi-api-executable)))
+    (insert "#+BEGIN_SRC sh\n")
+    (when (string-prefix-p exe command)
+      (setq command (string-trim (string-remove-prefix exe command))))
+    (insert (format "%s %s\n" komorebi-api-executable command))
+    (insert "#+END_SRC\n")))
+
+
 (defun komorebi-api--help-success (command help-message indent)
   "Insert successful HELP-MESSAGE of COMMAND into current buffer.
 INDENT is the level of org-heading."
   (insert (format "%s %s\n" (make-string indent ?*)
                   (capitalize command)))
+  (let ((cmd-url (command-url (komorebi-web-cli-command command))))
+    (insert (format "\n[[%s][Documentation]]\n\n" cmd-url)))
   (let ((option-found nil)
         (argument-found nil)
         (arg-regex "<\\([a-zA-Z]*\\)>"))
     (dolist (line (komorebi-api--help-messages help-message))
-      (cond ((and (not option-found) (string-prefix-p "Arguments:" line))
+      (cond ((string-prefix-p "Usage:" line)
+             (insert "\nUsage:\n")
+             (let ((cmd (string-remove-prefix "Usage:" line)))
+               (komorebi-api--help-insert-src-block (string-trim cmd)))
+             (insert "\n"))
+            ((and (not option-found) (string-prefix-p "Arguments:" line))
              (setq argument-found t)
              (insert (format "\n%s %s\n" (make-string (1+ indent) ?*) line)))
             ((and (not option-found) argument-found (string-match arg-regex line))
@@ -107,7 +120,7 @@ INDENT is the level of org-heading."
   (let* ((help-message (komorebi-api--execute command "--help"))
          (cmd-buffer (get-buffer-create komorebi-api-help-buffer-name))
          (is-error (string-match "error" help-message))
-         (org-startup-folded (if is-error 'show3levels 'showall)))
+         (org-startup-folded (if is-error 'show2levels 'showall)))
     (with-current-buffer cmd-buffer
       (view-mode-exit)
       (read-only-mode 0)
@@ -118,7 +131,23 @@ INDENT is the level of org-heading."
       (org-mode)
       (read-only-mode 'toggle)
       (view-mode-enter)
+      (goto-char (point-min))
       (pop-to-buffer (current-buffer)))))
+
+
+(defun komorebi-api-command-at-point ()
+  "Return komorebi command at point."
+  (let ((command (thing-at-point 'symbol t)))
+    (when (null command)
+      (user-error "No komorebi command found at point"))
+    (string-remove-prefix "komorebi-api-" command)))
+
+
+(defun komorebi-api-command-help-at-point ()
+  "Return help of komorebi command at point."
+  (interactive)
+  (let ((command (komorebi-api-command-at-point)))
+    (komorebi-api-command-help command)))
 
 
 (defun komorebi-api--execute (command &rest args)
@@ -127,7 +156,23 @@ INDENT is the level of org-heading."
                            (shell-quote-argument komorebi-api-executable)
                            command
                            (komorebi-api--args-get args))))
-    (shell-command-to-string (string-trim shell-cmd))))
+    (let ((result (shell-command-to-string shell-cmd)))
+      (message "Executing: %s\n%s" shell-cmd result)
+      result)))
+
+
+(defun komorebi-api-create ()
+  "Create the function for each komorebi API command."
+  (dolist (command (komorebi-web-cli-commands))
+    (let ((args (function-args command)))
+      (if (length= args 0)
+          (defalias (intern (function-name command))
+            (lambda () (apply #'komorebi-api--execute (oref command name)))
+            (lisp-description command))
+        (defalias (intern (function-name command))
+          (lambda (&rest args)
+            (apply #'komorebi-api--execute (oref command name) args))
+          (lisp-description command))))))
 
 
 (cl-defun komorebi-api-start (&key ffm await-config tcp-port whkd ahk bar config)
@@ -135,7 +180,8 @@ INDENT is the level of org-heading."
 FFM: allow `focus-follows-mouse'. BAR: enable the komorebi-bar.
 AWAIT-CONFIG: await configuration before processing events.
 TCP-PORT: the port to listen on for TCP connections.
-WHKD: enable the WHKD library. AHK: enable the AHK library."
+WHKD: enable the WHK
+D library. AHK: enable the AHK library."
   (komorebi-api--execute "start" (if ffm "--ffm" nil)
                          (if await-config "--await-configuration" nil)
                          (if tcp-port (format "--tcp-port %s" tcp-port) nil)
@@ -148,17 +194,25 @@ WHKD: enable the WHKD library. AHK: enable the AHK library."
   "Stop komorebi."
   (komorebi-api--execute "stop"))
 
-(defun komorebi-api-configuration ()
-  "Stop komorebi."
-  (komorebi-api--execute "configuration"))
-
 (defun komorebi-api-state ()
-  "State."
+  "Return json file with information about the current state."
   (komorebi-api--execute "state"))
 
-(defun komorebi-api-query (state-query)
+(defun komorebi-api--query (state-query)
   "Query komorebi with STATE-QUERY."
   (komorebi-api--execute "query" state-query))
+
+(defun komorebi-api-focused-montior ()
+  "Return number of currently focused MONITOR."
+  (komorebi--api-query "focused-monitor-index"))
+
+(defun komorebi-api-focused-workspace ()
+  "Return number of currently focused WORKSPACE."
+  (komorebi--api-query "focused-workspace-index"))
+
+(defun komorebi-api-focused-container ()
+  "Return number of currently focused CONTAINER."
+  (komorebi--api-query "focused-container-index"))
 
 (defun komorebi-api-subscribe (named-pipe)
   "Subscribe to komorebi with NAMED-PIPE."
@@ -205,7 +259,7 @@ WHKD: enable the WHKD library. AHK: enable the AHK library."
   (komorebi-api--execute "close"))
 
 (defun komorebi-api-force-focus ()
-  "Force focus."
+  "Forcibly focus the window at the cursor with a left mouse click."
   (komorebi-api--execute "force-focus"))
 
 (defun komorebi-api-cycle-focus (cycle-direction)
@@ -485,12 +539,16 @@ WHKD: enable the WHKD library. AHK: enable the AHK library."
   (komorebi-api--execute "restore-windows"))
 
 (defun komorebi-api-manage ()
-  "Manage."
+  "Manage. the X-window of Emacs from Komorebi."
   (komorebi-api--execute "manage"))
 
 (defun komorebi-api-unmanage ()
-  "Unmanage."
+  "Unmanage the X-window of Emacs from Komorebi."
   (komorebi-api--execute "unmanage"))
+
+(defun komorebi-api-configuration ()
+  "Return path to loaded configuration."
+  (komorebi-api--clean-control-char (komorebi-api--execute "configuration")))
 
 (defun komorebi-api-reload-configuration ()
   "Reload configuration."
@@ -621,5 +679,5 @@ WHKD: enable the WHKD library. AHK: enable the AHK library."
 ;;; komorebi-api.el ends here
 
 ;; Local Variables:
-;; jinx-local-words: "behaviour"
+;; jinx-local-words: "api behaviour"
 ;; End:
