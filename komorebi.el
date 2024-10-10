@@ -43,11 +43,22 @@
     (define-key key-map (komorebi--kdb-get "w") #'komorebi-switch-workspace)
     (define-key key-map (komorebi--kdb-get "m") #'komorebi-switch-monitor)
     (define-key key-map (komorebi--kdb-get "o") #'komorebi-toggle-monocle)
-    (define-key key-map (komorebi--kdb-get "c r") #'komorebi-relace-config)
+    (define-key key-map (kbd "M-n") #'komorebi-focus-next)
+    (define-key key-map (kbd "M-'") #'komorebi-horizontally-increase)
+    (define-key key-map (kbd "M-?") #'komorebi-horizontally-decrease)
+    (define-key key-map (kbd "M-^") #'komorebi-vertically-increase)
+    (define-key key-map (kbd "M-`") #'komorebi-vertically-decrease)
+    (define-key key-map (kbd "C-M-u") #'komorebi-unstack)
+    (define-key key-map (kbd "C-M-n") #'komorebi-stack-next)
+    (define-key key-map (kbd "C-M-r") #'komorebi-retile)
+    (define-key key-map (kbd "C-M-f") #'komorebi-toggle-float)
+    (define-key key-map (kbd "C-M-p") #'komorebi-toggle-pause)
+    (define-key key-map (kbd "M-0") #'komorebi-workspace-next)
     key-map))
 
 ;; (add-to-list 'minor-mode-alist '(pydyn-python-mode " pydyn-python"))
-;; (add-to-list 'minor-mode-map-alist (cons 'pydyn-python-mode pydyn-python-mode-map));;
+;; (add-to-list 'minor-mode-map-alist
+;; (cons 'pydyn-python-mode pydyn-python-mode-map));;
 
 (defvar komorebi-cycle-directions '("Next" "Previous")
   "Cycle directions for Komorebi.")
@@ -102,8 +113,8 @@ PREFIX is used to specify the type of direction."
 (defun komorebi-change-in (direction cycle-func operation-func)
   "Cycle or move in DIRECTION with CYCLE-FUNC or OPERATION-FUNC."
   (if (komorebi--is-cycle-direction direction)
-      (funcall cycle-func direction)
-    (funcall operation-func direction)))
+      (funcall cycle-func :cycle-direction direction)
+    (funcall operation-func :operation-direction direction)))
 
 
 ;;;###autoload
@@ -114,6 +125,12 @@ PREFIX is used to specify the type of direction."
     (komorebi-change-in direction
                         #'komorebi-api-cycle-focus
                         #'komorebi-api-focus)))
+
+;;;###autoload
+(defun komorebi-focus-next ()
+  "Switch next focused window."
+  (interactive)
+  (komorebi-api-cycle-focus :cycle-direction "next"))
 
 
 ;;;###autoload
@@ -127,12 +144,6 @@ PREFIX is used to specify the type of direction."
 
 
 ;;;###autoload
-(defun komorebi-unstack ()
-  "Split the stack of windows in which EMACS is currently focused."
-  (interactive)
-  (komorebi-api-unstack))
-
-;;;###autoload
 (defun komorebi-switch-workspace (direction)
   "Cycle or move to the next workspace in DIRECTION."
   (interactive "p")
@@ -140,6 +151,12 @@ PREFIX is used to specify the type of direction."
     (komorebi-change-in direction
                         #'komorebi-api-cycle-workspace
                         #'komorebi-api-move-to-workspace)))
+
+;;;###autoload
+(defun komorebi-workspace-next ()
+  "Switch to the next workspace."
+  (interactive)
+  (komorebi-api-cycle-workspace :cycle-direction "next"))
 
 
 ;;;###autoload
@@ -151,46 +168,36 @@ PREFIX is used to specify the type of direction."
                         #'komorebi-api-cycle-monitor
                         #'komorebi-api-move-to-monitor)))
 
-
 ;;;###autoload
-(defun komorebi-toggle-monocle ()
-  "Toggle monocle mode of current window."
-  (interactive '() (list 'komorebi-mode))
-  (komorebi-cli-toggle-monocle))
-
-
-;;;###autoload
-(defun komorebi-manage ()
-  "Activate Komorebi window management for EMACS X window."
+(defun komorebi-horizontally-decrease ()
+  "Decrease Emacs window horizontally."
   (interactive)
-  (komorebi-api-manage))
-
-
-;;;###autoload
-(defun komorebi-unmanage ()
-  "Deactivate Komorebi window management for EMACS X window."
-  (interactive)
-  (komorebi-api-minimize))
-
+  (komorebi-api-resize-axis :axis "horizontal" :sizing "decrease"))
 
 ;;;###autoload
-(defun komorebi-minimize ()
-  "Minimize X window of EMACS."
+(defun komorebi-horizontally-increase ()
+  "Increase Emacs window horizontally."
   (interactive)
-  (komorebi-api-minimize))
+  (komorebi-api-resize-axis :axis "horizontal" :sizing "increase"))
+
+;;;###autoload
+(defun komorebi-vertically-decrease ()
+  "Decrease Emacs window vertically."
+  (interactive)
+  (komorebi-api-resize-axis :axis "vertical" :sizing "decrease"))
+
+;;;###autoload
+(defun komorebi-vertically-increase ()
+  "Increase Emacs window vertically."
+  (interactive)
+  (komorebi-api-resize-axis :axis "vertical" :sizing "increase"))
 
 
 (defun komorebi-is-started ()
   "Return non-nil if Komorebi-server is started.
 Determines if Komorebi is running is by checking if static configuration is set."
   (interactive)
-  (komorebi-current-config))
-
-
-(defun komorebi-current-config ()
-  "Return path to current Komorebi configuration."
-  (interactive)
-  (komorebi-api-configuration))
+  (komorebi-configuration))
 
 
 (defcustom komorebi-configuration-files nil
@@ -211,13 +218,6 @@ Determines if Komorebi is running is by checking if static configuration is set.
 
 
 ;;;###autoload
-(defun komorebi-reload-config ()
-  "Reload Komorebi configuration."
-  (interactive)
-  (komorebi-api-reload-configuration))
-
-
-;;;###autoload
 (defun komorebi-replace-config (config)
   "Replace Komorebi static configuration with CONFIG."
   (interactive (list (komorebi--select-config)))
@@ -233,8 +233,8 @@ Determines if Komorebi is running is by checking if static configuration is set.
   "Restart Komorebi with option WHKD, AHK and/or BAR.
 Only either WHKD or AHK can be set at a time."
   (interactive (list :whkd nil :ahk t :bar t))
-  (komorebi-api-stop)
-  (komorebi-api-start :whkd whkd :ahk ahk :bar bar))
+  (komorebi-stop)
+  (komorebi-start))
 
 
 ;;;###autoload

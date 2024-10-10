@@ -21,6 +21,7 @@
 
 (require 'json)
 (require 'url)
+(require 's)
 
 
 (defcustom komorebi-web-docs-url "https://lgug2z.github.io/komorebi"
@@ -79,6 +80,22 @@
   (plist-get (komorebi-web-search-index-get) :docs))
 
 
+(defun komorebi-web--args-doc (arg)
+  "Return the LISP documentation for ARG."
+  ;; (format "%s (:%s):"
+  ;;         (upcase (plist-get arg :name))
+  ;;         (upcase (plist-get arg :name))))
+  (upcase (plist-get arg :name)))
+
+(defun komorebi-web--args-doc-length (args)
+  "Return the maximum length of the LISP documentation for ARGS."
+  (let ((max-length (seq-max
+                     (seq-map (lambda (arg)
+                                (length (komorebi-web--args-doc arg)))
+                              args))))
+    (concat "%-" (number-to-string max-length) "s")))
+
+
 (defclass komorebi-web-command ()
   ((name :initarg :name :type string)
    (location :initarg :location :type string)
@@ -91,34 +108,76 @@
 
 (cl-defmethod lisp-description ((cmd komorebi-web-command))
   "Return the LISP function description for CMD."
-  (let ((args (function-args cmd)))
-    (format "%s\n\nUsage: %s\n\nAugments:\n%s"
-            (oref cmd description)
-            (oref cmd usage)
-            (if (length= args 0) "None" (string-join args "\n")))))
+  (let ((desc (oref cmd description)))
+    (when (function-args-p cmd)
+      (let ((max-name (komorebi-web--args-doc-length
+                       (function-args-plist cmd))))
+        (setq desc (format "%s\n%s"
+                           desc
+                           (string-join
+                            (seq-map
+                             (lambda (arg)
+                               (format (concat max-name "\n   %s")
+                                       (komorebi-web--args-doc arg)
+                                       (plist-get arg :description)))
+                             (function-args-plist cmd))
+                            "\n")))))
+    ;; (setq desc (format "%s\n\nUsage: %s"
+    ;;                    desc
+    ;;                    (oref cmd usage)))
+    desc))
+
 
 (cl-defmethod function-name ((cmd komorebi-web-command))
   "Return the URL for CMD."
-  (if (length= (function-args cmd) 0)
-      (concat "komorebi-" (oref cmd name))
-    (concat "komorebi-cmd-" (oref cmd name))))
+  (let ((prefix (if (function-args-p cmd) "komorebi-api-" "komorebi-")))
+    (concat prefix (oref cmd name))))
 
 (cl-defmethod function-args-p ((cmd komorebi-web-command))
   "Return non-nil if CMD has arguments."
-  (length> (function-args cmd) 0))
+  (length> (function-args-plist cmd) 0))
 
-(cl-defmethod function-args ((cmd komorebi-web-command))
+(cl-defmethod function-args-description ((cmd komorebi-web-command))
   "Return the URL for CMD."
-  (append (seq-map (lambda (arg) (format "%s: %s" (upcase (plist-get arg :name)) (plist-get arg :description)))
+  (seq-map (lambda (arg)
+             (format "%s: %s" (upcase (plist-get arg :name)) (plist-get arg :description)))
+           (function-args-plist cmd)))
+
+(cl-defmethod attribute-list ((cmd komorebi-web-command))
+  "Return the URL for CMD."
+  (if (function-args-p cmd)
+      (format "&key %s"
+              (string-join
+               (seq-map
+                (lambda (arg)
+                  (plist-get arg :name))
+                (function-args-plist cmd))
+               " "))
+    ""))
+
+(cl-defmethod attribute-names ((cmd komorebi-web-command))
+  "Return the URL for CMD."
+  (if (function-args-p cmd)
+      (format " %s" (string-join (seq-map (lambda (arg) (plist-get arg :name))
+                                          (function-args-plist cmd)) " "))
+    ""))
+
+
+(cl-defmethod function-args-plist ((cmd komorebi-web-command))
+  "Return the URL for CMD."
+  (append (seq-map (lambda (arg)
+                     (list :name (plist-get arg :name)
+                           :description (plist-get arg :description)))
                    (oref cmd arguments))
-          (seq-map (lambda (opt) (format "%s: %s" (upcase (plist-get opt :name)) (plist-get opt :description)))
+          (seq-map (lambda (opt)
+                     (list :name (plist-get opt :name)
+                           :description (plist-get opt :description)))
                    (seq-filter (lambda (option) (not (equal (plist-get option :name) "help")))
                                (oref cmd options)))))
 
 (cl-defmethod command-url ((cmd komorebi-web-command))
   "Return the URL for CMD."
   (concat komorebi-web-docs-url "/" (oref cmd location)))
-
 
 (defun komorebi-web--ensure-not-empty-line ()
   "Delete all empty lines at the beginning of the current buffer."
@@ -128,8 +187,27 @@
     (delete-line))
   (goto-char (point-min)))
 
+(defun komorebi-web--arg-description (description)
+  "Return the DESCRIPTION of ARGUMENT or OPTION."
+  (let ((desc (replace-regexp-in-string
+               "[ ]\{2,\}" "\n"
+               (string-trim description))))
+    (if (length> desc 80)
+        (if (and (s-contains? "," desc) (string-match "\\(.*\\):\\(.*\\)" desc))
+            (format "%s:\n%s"
+                    (string-replace "[possible values:" "possible values:"(match-string 1 desc))
+                    (string-join (seq-map (lambda (val)
+                                            (if (string-prefix-p "- " val)
+                                                val
+                                              (format "- %s" val)))
+                                          (string-split (match-string 2 desc) "," t "[ \t\n]*"))
+                                 "\n"))
+          ;; No possible values
+          (string-join (string-split desc "\." t "[ \t\n]*") "\n"))
+      desc)))
 
-(defvar komorebi-web-cli-option-regex "\\(?:\\(?1:-[^ ,]\\),\\)[ ]+\\(?2:--[^ ]+\\)[ ]+\\(?:<\\(?3:.*\\)>\\)?\\(?4:.*\\)"
+
+(defvar komorebi-web-cli-option-regex "\\(?:\\(?1:-[^ ,]\\),\\)[ ]+\\(?2:--[^ ]+\\)[ ]+\\(?3:<\\(?4:.*\\)>\\)?\\(?5:.*\\)"
   "Regex to match a CLI OPTION from text on the komorebi website.")
 
 (defun komorebi-web--cli-options-p ()
@@ -140,16 +218,31 @@
 (defun komorebi-web--cli-option-create (text)
   "Return a plist for a CLI OPTION from TEXT."
   (unless (string-empty-p (string-trim text))
-    (with-temp-buffer
-      (insert (string-trim (string-replace "\n" "" text)))
-      (goto-char (point-min))
-      (re-search-forward komorebi-web-cli-option-regex nil t)
-      (when (match-string 2)
-        (list :name (string-remove-prefix "--" (match-string 2))
-              :short (if (match-string 1) (string-trim (match-string 1)) "")
-              :long (if (match-string 2) (string-trim (match-string 2)) "")
-              :arg (if (match-string 3) (string-trim (match-string 3)) "")
-              :description (if (match-string 4) (string-trim (match-string 4)) ""))))))
+    (let* ((lines (string-split text "\n" t "[ \t\n]*"))
+           (desc-lines (seq-map
+                        #'string-trim
+                        (seq-filter
+                         (lambda (line)
+                           (if (s-contains? "help" (car lines)) t
+                             (not (s-contains? "help" line t))))
+                         (cdr lines)))))
+      (when (string-match komorebi-web-cli-option-regex (car lines))
+        (list :name (string-remove-prefix "--" (match-string 2 (car lines)))
+              :short (if (match-string 1 (car lines)) (string-trim (match-string 1 (car lines))) "")
+              :long (if (match-string 2 (car lines)) (string-trim (match-string 2 (car lines))) "")
+              :description (komorebi-web--arg-description
+                            (string-join (seq-map (lambda (line)
+                                                    (string-trim
+                                                     (replace-regexp-in-string
+                                                      "[ \\[]*\\(possible values:\\)"
+                                                      "\\1"
+                                                      (if (and (not (s-contains? "[" line))
+                                                               (string-suffix-p "]" (string-trim line)))
+                                                          (string-remove-suffix "]" (string-trim-right line))
+                                                        line))
+                                                     "[\[\t\n]*" "[ \t\n\]]*"))
+                                                  desc-lines)
+                                         "\n")))))))
 
 (defun komorebi-web--cli-options-plist ()
   "Return plist with command options from the komorebi website."
@@ -177,7 +270,7 @@
       (reverse (seq-filter 'identity options)))))
 
 
-(defvar komorebi-web-cli-argument-regex "\\(?:<\\(?1:.*\\)>\\)[ ]+\\(?2:.*\\)"
+(defvar komorebi-web-cli-argument-regex "\\(?:[ ]*<\\(?1:.*\\)>\\)[ ]*\\(?2:.*\\)"
   "Regex to match a CLI ARGUMENT from text on the komorebi website.")
 
 (defun komorebi-web--cli-arguments-p ()
@@ -189,38 +282,39 @@
   "Return a plist for a CLI ARGUMENT from TEXT."
   (unless (string-empty-p (string-trim text))
     (with-temp-buffer
-      (insert (string-trim (string-replace "\n" "" text)))
+      (insert (string-trim
+               (string-replace
+                "\\" "" (string-replace
+                         "\"" "'" (string-replace
+                                   "\\\"" "'" (string-replace
+                                               "\n" "" text))))))
       (goto-char (point-min))
       (re-search-forward komorebi-web-cli-argument-regex nil t)
       (when (match-string 1)
-        (list :name (string-trim (match-string 1))
-              :description (string-trim (match-string 2)))))))
+        (list :name (string-replace "_" "-" (downcase (string-trim (match-string 1))))
+              :description (komorebi-web--arg-description (match-string 2)))))))
 
 (defun komorebi-web--cli-arguments-plist ()
   "Return plist with COMMAND ARGUMENTS from the komorebi website."
-  (let ((option-point (komorebi-web--cli-options-p))
-        (arguments nil)
-        (cur-end-of-line (pos-eol)))
+  (let ((option-point (save-excursion
+                        (komorebi-web--cli-options-p)
+                        (goto-char (match-beginning 0))
+                        (forward-line -1)
+                        (point)))
+        (arguments nil))
     (when (komorebi-web--cli-arguments-p)
       (narrow-to-region (match-beginning 0) option-point)
       (goto-char (point-min))
       (delete-line)
       (komorebi-web--ensure-not-empty-line)
-      (setq cur-end-of-line (pos-eol))
-      (forward-char 1)
-      (while (re-search-forward komorebi-web-cli-argument-regex option-point t)
+      (goto-char (point-max))
+      (while (re-search-backward komorebi-web-cli-argument-regex nil t)
         (goto-char (match-beginning 0))
-        (when (< (point) cur-end-of-line)
-          (goto-char (point-max)))
         (push (komorebi-web--cli-argument-create
-               (buffer-substring-no-properties (point-min) (point)))
+               (buffer-substring-no-properties (point) (point-max)))
               arguments)
-        (delete-region (point-min) (point))
-        (komorebi-web--ensure-not-empty-line)
-        (setq cur-end-of-line (pos-eol))
-        (unless (eobp)
-          (forward-char 1)))
-      (setq arguments (reverse (seq-filter 'identity arguments))))
+        (delete-region (point) (point-max))
+        (goto-char (point-max))))
     (when (buffer-narrowed-p)
       (widen))
     arguments))
@@ -239,9 +333,17 @@
 (defun komorebi-web--cli-command-description ()
   "Return the description of the command in the current buffer."
   (goto-char (point-min))
-  (komorebi-web--ensure-not-empty-line)
-  (let ((description (buffer-substring-no-properties (point-min) (point-max))))
-    (string-trim description "[ \t\n\r]*" "[ \t\n\r]*")))
+  (let* ((descriptions (string-split
+                        (buffer-substring-no-properties
+                         (point-min) (point-max))
+                        "\n" t "[ \t\n\r]*"))
+         (desc (string-join descriptions ".\n")))
+    (setq desc (string-replace "\\\"" "'" desc))
+    (unless (string-suffix-p "." desc)
+      (setq desc (concat desc ".")))
+    (if (length> desc 80)
+        (string-join (string-split desc "." t "[ ]*") ".\n")
+      desc)))
 
 
 (defun komorebi-web--cli-command-create (command)
@@ -307,7 +409,3 @@
 
 (provide 'komorebi-web)
 ;;; komorebi-web.el ends here
-
-;; Local Variables:
-;; jinx-local-words: "lt pre"
-;; End:

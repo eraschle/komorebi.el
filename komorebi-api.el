@@ -18,11 +18,11 @@
 ;;  Description
 ;;
 ;;; Code:
+(require 'komorebi-web)
 (require 'cl-lib)
 (require 'view)
 (require 'subr-x)
 (require 'org)
-(require 'komorebi-web)
 
 (defcustom komorebi-api-executable "/mnt/c/workspace/komorebi/target/release/komorebic.exe"
   "The path to the komorebi executable."
@@ -114,6 +114,7 @@ INDENT is the level of org-heading."
                (insert (format "%s\n" (string-join (cdr option-text) " ")))))
             (t (insert (format "%s\n" line)))))))
 
+
 (defun komorebi-api-command-help (command)
   "Return help of komorebi COMMAND."
   (interactive "sCommand: ")
@@ -135,9 +136,10 @@ INDENT is the level of org-heading."
       (pop-to-buffer (current-buffer)))))
 
 
-(defun komorebi-api-command-at-point ()
+(defun komorebi-api--command-at-point ()
   "Return komorebi command at point."
   (let ((command (thing-at-point 'symbol t)))
+
     (when (null command)
       (user-error "No komorebi command found at point"))
     (string-remove-prefix "komorebi-api-" command)))
@@ -146,7 +148,7 @@ INDENT is the level of org-heading."
 (defun komorebi-api-command-help-at-point ()
   "Return help of komorebi command at point."
   (interactive)
-  (let ((command (komorebi-api-command-at-point)))
+  (let ((command (komorebi-api--command-at-point)))
     (komorebi-api-command-help command)))
 
 
@@ -167,7 +169,9 @@ INDENT is the level of org-heading."
     (let ((args (function-args command)))
       (if (length= args 0)
           (defalias (intern (function-name command))
-            (lambda () (apply #'komorebi-api--execute (oref command name)))
+            (lambda ()
+              (interactive)
+              (apply #'komorebi-api--execute (oref command name)))
             (lisp-description command))
         (defalias (intern (function-name command))
           (lambda (&rest args)
@@ -175,505 +179,1190 @@ INDENT is the level of org-heading."
           (lisp-description command))))))
 
 
-(cl-defun komorebi-api-start (&key ffm await-config tcp-port whkd ahk bar config)
-  "Start komorebi with the given options.
-FFM: allow `focus-follows-mouse'. BAR: enable the komorebi-bar.
-AWAIT-CONFIG: await configuration before processing events.
-TCP-PORT: the port to listen on for TCP connections.
-WHKD: enable the WHK
-D library. AHK: enable the AHK library."
-  (komorebi-api--execute "start" (if ffm "--ffm" nil)
-                         (if await-config "--await-configuration" nil)
-                         (if tcp-port (format "--tcp-port %s" tcp-port) nil)
-                         (if whkd "--whkd" nil)
-                         (if ahk "--ahk" nil)
-                         (if bar "--bar" nil)
-                         (if config (format "--config %s" config) nil)))
+(defun komorebi-api-function-lines (command)
+  "Return the function lines of komorebi COMMAND."
+  (seq-filter
+   #'identity
+   (list (unless (function-args-p command)
+           ";;;###autoload")
+         (format
+          "(cl-defun %s (%s)\n  \"%s\""
+          (function-name command)
+          (attribute-list command)
+          (lisp-description command))
+         (unless (function-args-p command)
+           "  (interactive)")
+         (format "  (komorebi-api--execute \"%s\"%s))"
+                 (oref command name)
+                 (attribute-names command)))))
 
-(defun komorebi-api-stop ()
-  "Stop komorebi."
-  (komorebi-api--execute "stop"))
+(defun komorebi-api--commands ()
+  "Return sorted list of komorebi API commands."
+  (sort (komorebi-web-cli-commands)
+        (lambda (cmd oth)
+          (string-lessp (function-name cmd)
+                        (function-name oth)))))
 
-(defun komorebi-api-state ()
-  "Return json file with information about the current state."
-  (komorebi-api--execute "state"))
+(defun komorebi-api-create-func ()
+  "Create the function for each komorebi API command."
+  (interactive)
+  (save-excursion
+    (forward-line 1)
+    (narrow-to-region (point)
+                      (save-excursion
+                        (search-forward "(provide 'komorebi-api)")
+                        (forward-line -1)
+                        (point)))
+    (delete-region (point-min) (point-max))
+    (komorebi-web--ensure-not-empty-line)
+    (insert ";;;\n")
+    (insert ";;; Generated functions\n")
+    (dolist (command (komorebi-api--commands))
+      (insert "\n")
+      (insert (string-join (komorebi-api-function-lines command) "\n"))
+      (insert "\n"))
+    (insert ";;; End generated functions\n")
+    (widen)))
 
-(defun komorebi-api--query (state-query)
-  "Query komorebi with STATE-QUERY."
-  (komorebi-api--execute "query" state-query))
 
-(defun komorebi-api-focused-montior ()
-  "Return number of currently focused MONITOR."
-  (komorebi--api-query "focused-monitor-index"))
+;;;
+;;; Generated functions
 
-(defun komorebi-api-focused-workspace ()
-  "Return number of currently focused WORKSPACE."
-  (komorebi--api-query "focused-workspace-index"))
-
-(defun komorebi-api-focused-container ()
-  "Return number of currently focused CONTAINER."
-  (komorebi--api-query "focused-container-index"))
-
-(defun komorebi-api-subscribe (named-pipe)
-  "Subscribe to komorebi with NAMED-PIPE."
-  (komorebi-api--execute "subscribe" named-pipe))
-
-(defun komorebi-api-unsubscribe (named-pipe)
-  "Unsubscribe to komorebi with NAMED-PIPE."
-  (komorebi-api--execute "unsubscribe" named-pipe))
-
-(defun komorebi-api-log ()
-  "Log komorebi with LOG-LEVEL and MESSAGE."
-  (komorebi-api--execute "log"))
-
-(defun komorebi-api-quick-save-resize ()
-  "Quick save resize."
-  (komorebi-api--execute "quick-save-resize"))
-
-(defun komorebi-api-quick-load-resize ()
-  "Quick load resize."
-  (komorebi-api--execute "quick-load-resize"))
-
-(defun komorebi-api-save-resize (path)
-  "Save resize with PATH."
-  (komorebi-api--execute "save-resize" path))
-
-(defun komorebi-api-load-resize (path)
-  "Load resize with PATH."
-  (komorebi-api--execute "load-resize" path))
-
-(defun komorebi-api-focus (operation-direction)
-  "Focus with OPERATION-DIRECTION."
-  (komorebi-api--execute "focus" operation-direction))
-
-(defun komorebi-api-move (operation-direction)
-  "Move with OPERATION-DIRECTION."
-  (komorebi-api--execute "move" operation-direction))
-
-(defun komorebi-api-minimize ()
-  "Minimize."
-  (komorebi-api--execute "minimize"))
-
-(defun komorebi-api-close ()
-  "Close."
-  (komorebi-api--execute "close"))
-
-(defun komorebi-api-force-focus ()
-  "Forcibly focus the window at the cursor with a left mouse click."
-  (komorebi-api--execute "force-focus"))
-
-(defun komorebi-api-cycle-focus (cycle-direction)
-  "Cycle focus with CYCLE-DIRECTION."
-  (komorebi-api--execute "cycle-focus" cycle-direction))
-
-(defun komorebi-api-cycle-move (cycle-direction)
-  "Cycle move with CYCLE-DIRECTION."
-  (komorebi-api--execute "cycle-move" cycle-direction))
-
-(defun komorebi-api-stack (operation-direction)
-  "Stack with OPERATION-DIRECTION."
-  (komorebi-api--execute "stack" operation-direction))
-
-(defun komorebi-api-resize (edge sizing)
-  "Resize with EDGE and SIZING."
-  (komorebi-api--execute "resize" edge sizing))
-
-(defun komorebi-api-resize-axis (axis sizing)
-  "Resize axis with AXIS and SIZING."
-  (komorebi-api--execute "resize-axis" axis sizing))
-
-(defun komorebi-api-unstack ()
-  "Unstack the current stack of windows into separated windows."
-  (komorebi-api--execute "unstack"))
-
-(defun komorebi-api-cycle-stack (cycle-direction)
-  "Cycle stack with CYCLE-DIRECTION."
-  (komorebi-api--execute "cycle-stack" cycle-direction))
-
-(defun komorebi-api-cycle-move-to-monitor (cycle-direction)
-  "Cycle move to monitor with CYCLE-DIRECTION."
-  (komorebi-api--execute "cycle-move-to-monitor" cycle-direction))
-
-(defun komorebi-api-move-to-monitor (target)
-  "Move to monitor with TARGET."
-  (komorebi-api--execute "move-to-monitor" target))
-
-(defun komorebi-api-move-to-workspace (target)
-  "Move to workspace with TARGET."
-  (komorebi-api--execute "move-to-workspace" target))
-
-(defun komorebi-api-move-to-named-workspace (workspace)
-  "Move to named workspace with WORKSPACE."
-  (komorebi-api--execute "move-to-named-workspace" workspace))
-
-(defun komorebi-api-cycle-move-to-workspace (cycle-direction)
-  "Cycle move to workspace with CYCLE-DIRECTION."
-  (komorebi-api--execute "cycle-move-to-workspace" cycle-direction))
-
-(defun komorebi-api-send-to-monitor (target)
-  "Send to monitor with TARGET."
-  (komorebi-api--execute "send-to-monitor" target))
-
-(defun komorebi-api-cycle-send-to-monitor (cycle-direction)
-  "Cycle send to monitor with CYCLE-DIRECTION."
-  (komorebi-api--execute "cycle-send-to-monitor" cycle-direction))
-
-(defun komorebi-api-send-to-workspace (target)
-  "Send to workspace with TARGET."
-  (komorebi-api--execute "send-to-workspace" target))
-
-(defun komorebi-api-send-to-named-workspace (workspace)
-  "Send to named workspace with WORKSPACE."
-  (komorebi-api--execute "send-to-named-workspace" workspace))
-
-(defun komorebi-api-cycle-send-to-workspace (cycle-direction)
-  "Cycle send to workspace with CYCLE-DIRECTION."
-  (komorebi-api--execute "cycle-send-to-workspace" cycle-direction))
-
-(defun komorebi-api-send-to-monitor-workspace (target-monitor target-workspace)
-  "Send to monitor workspace with TARGET-MONITOR and TARGET-WORKSPACE."
-  (komorebi-api--execute "send-to-monitor-workspace" target-monitor target-workspace))
-
-(defun komorebi-api-focus-monitor (target)
-  "Focus monitor with TARGET."
-  (komorebi-api--execute "focus-monitor" target))
-
-(defun komorebi-api-focus-workspace (target)
-  "Focus workspace with TARGET."
-  (komorebi-api--execute "focus-workspace" target))
-
-(defun komorebi-api-focus-monitor-workspace (target-monitor target-workspace)
-  "Focus monitor workspace with TARGET-MONITOR and TARGET-WORKSPACE."
-  (komorebi-api--execute "focus-monitor-workspace" target-monitor target-workspace))
-
-(defun komorebi-api-focus-named-workspace (workspace)
-  "Focus named workspace with WORKSPACE."
-  (komorebi-api--execute "focus-named-workspace" workspace))
-
-(defun komorebi-api-cycle-monitor (cycle-direction)
-  "Cycle monitor with CYCLE-DIRECTION."
-  (komorebi-api--execute "cycle-monitor" cycle-direction))
-
-(defun komorebi-api-cycle-workspace (cycle-direction)
-  "Cycle workspace with CYCLE-DIRECTION."
-  (komorebi-api--execute "cycle-workspace" cycle-direction))
-
-(defun komorebi-api-move-workspace-to-monitor (target)
-  "Move workspace to monitor with TARGET."
-  (komorebi-api--execute "move-workspace-to-monitor" target))
-
-(defun komorebi-api-new-workspace ()
-  "New workspace."
-  (komorebi-api--execute "new-workspace"))
-
-(defun komorebi-api-resize-delta (pixels)
-  "Resize delta with PIXELS."
-  (komorebi-api--execute "resize-delta" pixels))
-
-(defun komorebi-api-invisible-borders (left top right bottom)
-  "Invisible borders with LEFT, TOP, RIGHT and BOTTOM."
-  (komorebi-api--execute "invisible-borders" left top right bottom))
-
-(defun komorebi-api-global-work-area-offset (left top right bottom)
-  "Global work area offset with LEFT, TOP, RIGHT and BOTTOM."
-  (komorebi-api--execute "global-work-area-offset" left top right bottom))
-
-(defun komorebi-api-monitor-work-area-offset (monitor left top right bottom)
-  "Monitor work area offset with MONITOR, LEFT, TOP, RIGHT and BOTTOM."
-  (komorebi-api--execute "monitor-work-area-offset" monitor left top right bottom))
-
-(defun komorebi-api-adjust-container-padding (sizing adjustment)
-  "Adjust container padding with SIZING and ADJUSTMENT."
+(cl-defun komorebi-api-adjust-container-padding (&key sizing adjustment)
+  "Adjust container padding on the focused workspace.
+SIZING
+   [possible values: increase, decrease]
+ADJUSTMENT
+   Pixels to adjust by as an integer"
   (komorebi-api--execute "adjust-container-padding" sizing adjustment))
 
-(defun komorebi-api-adjust-workspace-padding (sizing adjustment)
-  "Adjust workspace padding with SIZING and ADJUSTMENT."
+(cl-defun komorebi-api-adjust-workspace-padding (&key sizing adjustment)
+  "Adjust workspace padding on the focused workspace.
+SIZING
+   [possible values: increase, decrease]
+ADJUSTMENT
+   Pixels to adjust by as an integer"
   (komorebi-api--execute "adjust-workspace-padding" sizing adjustment))
 
-(defun komorebi-api-change-layout (default-layout)
-  "Change layout with DEFAULT-LAYOUT."
+(cl-defun komorebi-api-ahk-app-specific-configuration (&key path)
+  "Generate common app-specific configurations and fixes to use in komorebi.ahk.
+PATH
+   "
+  (komorebi-api--execute "ahk-app-specific-configuration" path))
+
+(cl-defun komorebi-api-animation (&key boolean-state)
+  "Enable or disable movement animations.
+BOOLEAN-STATE
+   [possible values: enable, disable]"
+  (komorebi-api--execute "animation" boolean-state))
+
+(cl-defun komorebi-api-animation-duration (&key duration)
+  "Set the duration for movement animations in ms.
+DURATION
+   Desired animation durations in ms"
+  (komorebi-api--execute "animation-duration" duration))
+
+(cl-defun komorebi-api-animation-fps (&key fps)
+  "Set the frames per second for movement animations.
+FPS
+   Desired animation frames per second"
+  (komorebi-api--execute "animation-fps" fps))
+
+(cl-defun komorebi-api-animation-style (&key style)
+  "Set the ease function for movement animations.
+STYLE
+   default:
+- linear]"
+  (komorebi-api--execute "animation-style" style))
+
+(cl-defun komorebi-api-border (&key boolean-state)
+  "Enable or disable borders.
+BOOLEAN-STATE
+   [possible values: enable, disable]"
+  (komorebi-api--execute "border" boolean-state))
+
+(cl-defun komorebi-api-border-colour (&key r g b window-kind)
+  "Set the colour for a window border kind.
+R
+   Red
+G
+   Green
+B
+   Blue
+WINDOW-KIND
+   default: single]
+possible values: single, stack, monocle, unfocused]"
+  (komorebi-api--execute "border-colour" r g b window-kind))
+
+(cl-defun komorebi-api-border-implementation (&key style)
+  "Set the border implementation.
+STYLE
+   "
+  (komorebi-api--execute "border-implementation" style))
+
+(cl-defun komorebi-api-border-offset (&key offset)
+  "Set the border offset.
+OFFSET
+   Desired offset of the window border"
+  (komorebi-api--execute "border-offset" offset))
+
+(cl-defun komorebi-api-border-style (&key style)
+  "Set the border style.
+STYLE
+   "
+  (komorebi-api--execute "border-style" style))
+
+(cl-defun komorebi-api-border-width (&key width)
+  "Set the border width.
+WIDTH
+   Desired width of the window border"
+  (komorebi-api--execute "border-width" width))
+
+(cl-defun komorebi-api-change-layout (&key default-layout)
+  "Set the layout on the focused workspace.
+DEFAULT-LAYOUT
+   [possible values:
+- bsp
+- columns
+- rows
+- vertical-stack
+- horizontal-stack
+- ultrawide-vertical-stack
+- grid
+- right-main-vertical-stack]"
   (komorebi-api--execute "change-layout" default-layout))
 
-(defun komorebi-api-cycle-layout (operation-direction)
-  "Cycle layout with OPERATION-DIRECTION."
-  (komorebi-api--execute "cycle-layout" operation-direction))
-
-(defun komorebi-api-load-custom-layout (path)
-  "Load custom layout with PATH."
-  (komorebi-api--execute "load-custom-layout" path))
-
-(defun komorebi-api-flip-layout (axis)
-  "Flip layout with AXIS."
-  (komorebi-api--execute "flip-layout" axis))
-
-(defun komorebi-api-promote ()
-  "Promote."
-  (komorebi-api--execute "promote"))
-
-(defun komorebi-api-promote-focus ()
-  "Promote focus."
-  (komorebi-api--execute "promote-focus"))
-
-(defun komorebi-api-retile ()
-  "Retile."
-  (komorebi-api--execute "retile"))
-
-(defun komorebi-api-monitor-index-preference (index-preference left top right bottom)
-  "Monitor index preference with INDEX-PREFERENCE, LEFT, TOP, RIGHT and BOTTOM."
-  (komorebi-api--execute "monitor-index-preference" index-preference left top right bottom))
-
-(defun komorebi-api-ensure-workspaces (monitor workspace-count)
-  "Ensure workspaces with MONITOR and WORKSPACE-COUNT."
-  (komorebi-api--execute "ensure-workspaces" monitor workspace-count))
-
-(defun komorebi-api-ensure-named-workspaces (monitor names)
-  "Ensure named workspaces with MONITOR and NAMES."
-  (komorebi-api--execute "ensure-named-workspaces" monitor names))
-
-(defun komorebi-api-container-padding (monitor workspace size)
-  "Container padding with MONITOR, WORKSPACE and SIZE."
-  (komorebi-api--execute "container-padding" monitor workspace size))
-
-(defun komorebi-api-named-workspace-container-padding (workspace size)
-  "Named workspace container padding with WORKSPACE and SIZE."
-  (komorebi-api--execute "named-workspace-container-padding" workspace size))
-
-(defun komorebi-api-workspace-padding (monitor workspace size)
-  "Workspace padding with MONITOR, WORKSPACE and SIZE."
-  (komorebi-api--execute "workspace-padding" monitor workspace size))
-
-(defun komorebi-api-named-workspace-padding (workspace size)
-  "Named workspace padding with WORKSPACE and SIZE."
-  (komorebi-api--execute "named-workspace-padding" workspace size))
-
-(defun komorebi-api-workspace-layout (monitor workspace value)
-  "Workspace layout with MONITOR, WORKSPACE and VALUE."
-  (komorebi-api--execute "workspace-layout" monitor workspace value))
-
-(defun komorebi-api-named-workspace-layout (workspace value)
-  "Named workspace layout with WORKSPACE and VALUE."
-  (komorebi-api--execute "named-workspace-layout" workspace value))
-
-(defun komorebi-api-workspace-custom-layout (monitor workspace path)
-  "Workspace custom layout with MONITOR, WORKSPACE and PATH."
-  (komorebi-api--execute "workspace-custom-layout" monitor workspace path))
-
-(defun komorebi-api-named-workspace-custom-layout (workspace path)
-  "Named workspace custom layout with WORKSPACE and PATH."
-  (komorebi-api--execute "named-workspace-custom-layout" workspace path))
-
-(defun komorebi-api-workspace-layout-rule (monitor workspace at-container-count layout)
-  "Workspace layout rule with MONITOR, WORKSPACE, AT-CONTAINER-COUNT and LAYOUT."
-  (komorebi-api--execute "workspace-layout-rule" monitor workspace at-container-count layout))
-
-(defun komorebi-api-named-workspace-layout-rule (workspace at-container-count layout)
-  "Named workspace layout rule with WORKSPACE, AT-CONTAINER-COUNT and LAYOUT."
-  (komorebi-api--execute "named-workspace-layout-rule" workspace at-container-count layout))
-
-(defun komorebi-api-workspace-custom-layout-rule (monitor workspace at-container-count path)
-  "Workspace custom layout rule with MONITOR, WORKSPACE, AT-CONTAINER-COUNT and PATH."
-  (komorebi-api--execute "workspace-custom-layout-rule" monitor workspace at-container-count path))
-
-(defun komorebi-api-named-workspace-custom-layout-rule (workspace at-container-count path)
-  "Named workspace custom layout rule with WORKSPACE, AT-CONTAINER-COUNT and PATH."
-  (komorebi-api--execute "named-workspace-custom-layout-rule" workspace at-container-count path))
-
-(defun komorebi-api-clear-workspace-layout-rules (monitor workspace)
-  "Clear workspace layout rules with MONITOR and WORKSPACE."
-  (komorebi-api--execute "clear-workspace-layout-rules" monitor workspace))
-
-(defun komorebi-api-clear-named-workspace-layout-rules (workspace)
-  "Clear named workspace layout rules with WORKSPACE."
+(cl-defun komorebi-api-clear-named-workspace-layout-rules (&key workspace)
+  "Clear all dynamic layout rules for the specified workspace.
+WORKSPACE
+   Target workspace name"
   (komorebi-api--execute "clear-named-workspace-layout-rules" workspace))
 
-(defun komorebi-api-workspace-tiling (monitor workspace value)
-  "Workspace tiling with MONITOR, WORKSPACE and VALUE."
-  (komorebi-api--execute "workspace-tiling" monitor workspace value))
+(cl-defun komorebi-api-clear-named-workspace-rules (&key workspace)
+  "Remove all application association rules for a named workspace.
+WORKSPACE
+   Name of a workspace"
+  (komorebi-api--execute "clear-named-workspace-rules" workspace))
 
-(defun komorebi-api-named-workspace-tiling (workspace value)
-  "Named workspace tiling with WORKSPACE and VALUE."
-  (komorebi-api--execute "named-workspace-tiling" workspace value))
+(cl-defun komorebi-api-clear-workspace-layout-rules (&key monitor workspace)
+  "Clear all dynamic layout rules for the specified workspace.
+MONITOR
+   Monitor index (zero-indexed)
+WORKSPACE
+   Workspace index on the specified monitor (zero-indexed)"
+  (komorebi-api--execute "clear-workspace-layout-rules" monitor workspace))
 
-(defun komorebi-api-workspace-name (monitor workspace value)
-  "Workspace name with MONITOR, WORKSPACE and VALUE."
-  (komorebi-api--execute "workspace-name" monitor workspace value))
+(cl-defun komorebi-api-clear-workspace-rules (&key monitor workspace)
+  "
+MONITOR
+   Monitor index (zero-indexed)
+WORKSPACE
+   Workspace index on the specified monitor (zero-indexed)"
+  (komorebi-api--execute "clear-workspace-rules" monitor workspace))
 
-(defun komorebi-api-toggle-window-container-behaviour ()
-  "Toggle window container behaviour."
-  (komorebi-api--execute "toggle-window-container-behaviour"))
+(cl-defun komorebi-api-container-padding (&key monitor workspace size)
+  "Set the container padding for the specified workspace.
+MONITOR
+   Monitor index (zero-indexed)
+WORKSPACE
+   Workspace index on the specified monitor (zero-indexed)
+SIZE
+   Pixels to pad with as an integer"
+  (komorebi-api--execute "container-padding" monitor workspace size))
 
-(defun komorebi-api-toggle-pause ()
-  "Toggle pause."
-  (komorebi-api--execute "toggle-pause"))
-
-(defun komorebi-api-toggle-tiling ()
-  "Toggle tiling."
-  (komorebi-api--execute "toggle-tiling"))
-
-(defun komorebi-api-toggle-float ()
-  "Toggle float."
-  (komorebi-api--execute "toggle-float"))
-
-(defun komorebi-api-toggle-monocle ()
-  "Toggle monocle."
-  (komorebi-api--execute "toggle-monocle"))
-
-(defun komorebi-api-toggle-maximize ()
-  "Toggle maximize."
-  (komorebi-api--execute "toggle-maximize"))
-
-(defun komorebi-api-toggle-transparency ()
-  "Toggle transparency."
-  (komorebi-api--execute "toggle-transparency"))
-
-(defun komorebi-api-transparency (boolean-state)
-  "Set Transparency state to BOOLEAN-STATE."
-  (komorebi-api--execute "transparency" boolean-state))
-
-(defun komorebi-api-transparency-alpha (alpha)
-  "Set Transparency alpha to ALPHA."
-  (komorebi-api--execute "transparency-alpha" alpha))
-
-(defun komorebi-api-restore-windows ()
-  "Restore windows."
-  (komorebi-api--execute "restore-windows"))
-
-(defun komorebi-api-manage ()
-  "Manage. the X-window of Emacs from Komorebi."
-  (komorebi-api--execute "manage"))
-
-(defun komorebi-api-unmanage ()
-  "Unmanage the X-window of Emacs from Komorebi."
-  (komorebi-api--execute "unmanage"))
-
-(defun komorebi-api-configuration ()
-  "Return path to loaded configuration."
-  (komorebi-api--clean-control-char (komorebi-api--execute "configuration")))
-
-(defun komorebi-api-reload-configuration ()
-  "Reload configuration."
-  (komorebi-api--execute "reload-configuration"))
-
-(defun komorebi-api-replace-configuration (config)
-  "Replace configuration with CONFIG."
-  (komorebi-api--execute "replace-configuration" config))
-
-(defun komorebi-api-watch-configuration (boolean-state)
-  "Watch configuration with BOOLEAN-STATE."
-  (komorebi-api--execute "watch-configuration" boolean-state))
-
-(defun komorebi-api-complete-configuration ()
-  "Complete configuration."
-  (komorebi-api--execute "complete-configuration"))
-
-(defun komorebi-api-alt-focus-hack (boolean-state)
-  "Alt focus hack with BOOLEAN-STATE."
-  (komorebi-api--execute "alt-focus-hack" boolean-state))
-
-(defun komorebi-api-window-hiding-behaviour (hiding-behaviour)
-  "Window hiding behaviour with HIDING-BEHAVIOUR."
-  (komorebi-api--execute "window-hiding-behaviour" hiding-behaviour))
-
-(defun komorebi-api-cross-monitor-move-behaviour (move-behaviour)
-  "Cross monitor move behaviour with MOVE-BEHAVIOUR."
+(cl-defun komorebi-api-cross-monitor-move-behaviour (&key move-behaviour)
+  "Set the behaviour when moving windows across monitor boundaries.
+MOVE-BEHAVIOUR
+   "
   (komorebi-api--execute "cross-monitor-move-behaviour" move-behaviour))
 
-(defun komorebi-api-toggle-cross-monitor-move-behaviour ()
-  "Toggle cross monitor move behaviour."
-  (komorebi-api--execute "toggle-cross-monitor-move-behaviour"))
+(cl-defun komorebi-api-cycle-focus (&key cycle-direction)
+  "Change focus to the window in the specified cycle direction.
+CYCLE-DIRECTION
+   [possible values: previous, next]"
+  (komorebi-api--execute "cycle-focus" cycle-direction))
 
-(defun komorebi-api-unmanaged-window-operation-behaviour (operation-behaviour)
-  "Unmanaged window operation behaviour with OPERATION-BEHAVIOUR."
-  (komorebi-api--execute "unmanaged-window-operation-behaviour" operation-behaviour))
+(cl-defun komorebi-api-cycle-layout (&key cycle-direction)
+  "Cycle between available layouts.
+CYCLE-DIRECTION
+   [possible values: previous, next]"
+  (komorebi-api--execute "cycle-layout" cycle-direction))
 
-(defun komorebi-api-float-rule (identifier id)
-  "Float rule with IDENTIFIER and ID."
+(cl-defun komorebi-api-cycle-monitor (&key cycle-direction)
+  "Focus the monitor in the given cycle direction.
+CYCLE-DIRECTION
+   [possible values: previous, next]"
+  (komorebi-api--execute "cycle-monitor" cycle-direction))
+
+(cl-defun komorebi-api-cycle-move (&key cycle-direction)
+  "Move the focused window in the specified cycle direction.
+CYCLE-DIRECTION
+   [possible values: previous, next]"
+  (komorebi-api--execute "cycle-move" cycle-direction))
+
+(cl-defun komorebi-api-cycle-move-to-monitor (&key cycle-direction)
+  "Move the focused window to the monitor in the given cycle direction.
+CYCLE-DIRECTION
+   [possible values: previous, next]"
+  (komorebi-api--execute "cycle-move-to-monitor" cycle-direction))
+
+(cl-defun komorebi-api-cycle-move-to-workspace (&key cycle-direction)
+  "Move the focused window to the workspace in the given cycle direction.
+CYCLE-DIRECTION
+   [possible values: previous, next]"
+  (komorebi-api--execute "cycle-move-to-workspace" cycle-direction))
+
+(cl-defun komorebi-api-cycle-move-workspace-to-monitor (&key cycle-direction)
+  "Move the focused workspace monitor in the given cycle direction.
+CYCLE-DIRECTION
+   [possible values: previous, next]"
+  (komorebi-api--execute "cycle-move-workspace-to-monitor" cycle-direction))
+
+(cl-defun komorebi-api-cycle-send-to-monitor (&key cycle-direction)
+  "Send the focused window to the monitor in the given cycle direction.
+CYCLE-DIRECTION
+   [possible values: previous, next]"
+  (komorebi-api--execute "cycle-send-to-monitor" cycle-direction))
+
+(cl-defun komorebi-api-cycle-send-to-workspace (&key cycle-direction)
+  "Send the focused window to the workspace in the given cycle direction.
+CYCLE-DIRECTION
+   [possible values: previous, next]"
+  (komorebi-api--execute "cycle-send-to-workspace" cycle-direction))
+
+(cl-defun komorebi-api-cycle-stack (&key cycle-direction)
+  "Cycle the focused stack in the specified cycle direction.
+CYCLE-DIRECTION
+   [possible values: previous, next]"
+  (komorebi-api--execute "cycle-stack" cycle-direction))
+
+(cl-defun komorebi-api-cycle-workspace (&key cycle-direction)
+  "Focus the workspace in the given cycle direction.
+CYCLE-DIRECTION
+   [possible values: previous, next]"
+  (komorebi-api--execute "cycle-workspace" cycle-direction))
+
+(cl-defun komorebi-api-display-index-preference (&key index-preference display)
+  "
+INDEX-PREFERENCE
+   Preferred monitor index (zero-indexed)
+DISPLAY
+   Display name as identified in komorebic state"
+  (komorebi-api--execute "display-index-preference" index-preference display))
+
+(cl-defun komorebi-api-enable-autostart (&key config)
+  "Generates the komorebi.lnk shortcut in shell:startup to autostart komorebi.
+CONFIG
+   "
+  (komorebi-api--execute "enable-autostart" config))
+
+(cl-defun komorebi-api-ensure-named-workspaces (&key monitor)
+  "Create these many named workspaces for the specified monitor.
+MONITOR
+   Monitor index (zero-indexed)  [NAMES]...          Names of desired workspaces"
+  (komorebi-api--execute "ensure-named-workspaces" monitor))
+
+(cl-defun komorebi-api-ensure-workspaces (&key monitor workspace-count)
+  "Create at least this many workspaces for the specified monitor.
+MONITOR
+   Monitor index (zero-indexed)
+WORKSPACE-COUNT
+   Number of desired workspaces"
+  (komorebi-api--execute "ensure-workspaces" monitor workspace-count))
+
+(cl-defun komorebi-api-flip-layout (&key axis)
+  "Flip the layout on the focused workspace (BSP only).
+AXIS
+   [possible values: horizontal, vertical, horizontal-and-vertical]"
+  (komorebi-api--execute "flip-layout" axis))
+
+(cl-defun komorebi-api-float-rule (&key identifier id)
+  "Add a rule to always float the specified application.
+IDENTIFIER
+   [possible values: exe, class, title, path]
+ID
+   Identifier as a string"
   (komorebi-api--execute "float-rule" identifier id))
 
-(defun komorebi-api-manage-rule (identifier id)
-  "Manage rule with IDENTIFIER and ID."
-  (komorebi-api--execute "manage-rule" identifier id))
+(cl-defun komorebi-api-focus (&key operation-direction)
+  "Change focus to the window in the specified direction.
+OPERATION-DIRECTION
+   [possible values: left, right, up, down]"
+  (komorebi-api--execute "focus" operation-direction))
 
-(defun komorebi-api-workspace-rule (identifier id monitor workspace)
-  "Workspace rule with IDENTIFIER, ID, MONITOR and WORKSPACE."
-  (komorebi-api--execute "workspace-rule" identifier id monitor workspace))
-
-(defun komorebi-api-named-workspace-rule (identifier id workspace)
-  "Named workspace rule with IDENTIFIER, ID and WORKSPACE."
-  (komorebi-api--execute "named-workspace-rule" identifier id workspace))
-
-(defun komorebi-api-identify-object-name-change-application (identifier id)
-  "Identify object name change application with IDENTIFIER and ID."
-  (komorebi-api--execute "identify-object-name-change-application" identifier id))
-
-(defun komorebi-api-identify-tray-application (identifier id)
-  "Identify tray application with IDENTIFIER and ID."
-  (komorebi-api--execute "identify-tray-application" identifier id))
-
-(defun komorebi-api-identify-layered-application (identifier id)
-  "Identify layered application with IDENTIFIER and ID."
-  (komorebi-api--execute "identify-layered-application" identifier id))
-
-(defun komorebi-api-identify-border-overflow-application (identifier id)
-  "Identify border overflow application with IDENTIFIER and ID."
-  (komorebi-api--execute "identify-border-overflow-application" identifier id))
-
-(defun komorebi-api-active-window-border (boolean-state)
-  "Active window border with BOOLEAN-STATE."
-  (komorebi-api--execute "active-window-border" boolean-state))
-
-(defun komorebi-api-active-window-border-colour (red green blue window-kind)
-  "Active window border colour with RED, GREEN, BLUE and WINDOW-KIND."
-  (komorebi-api--execute "active-window-border-colour" red green blue window-kind))
-
-(defun komorebi-api-active-window-border-width (width)
-  "Active window border width with WIDTH."
-  (komorebi-api--execute "active-window-border-width" width))
-
-(defun komorebi-api-active-window-border-offset (offset)
-  "Active window border offset with OFFSET."
-  (komorebi-api--execute "active-window-border-offset" offset))
-
-(defun komorebi-api-focus-follows-mouse (boolean-state implementation)
-  "Focus follows mouse with BOOLEAN-STATE and IMPLEMENTATION."
+(cl-defun komorebi-api-focus-follows-mouse (&key boolean-state implementation)
+  "Enable or disable focus follows mouse for the operating system.
+BOOLEAN-STATE
+   [possible values: enable, disable]
+IMPLEMENTATION
+   "
   (komorebi-api--execute "focus-follows-mouse" boolean-state implementation))
 
-(defun komorebi-api-toggle-focus-follows-mouse (implementation)
-  "Toggle focus follows mouse with IMPLEMENTATION."
-  (komorebi-api--execute "toggle-focus-follows-mouse" implementation))
+(cl-defun komorebi-api-focus-monitor (&key target)
+  "Focus the specified monitor.
+TARGET
+   Target index (zero-indexed)"
+  (komorebi-api--execute "focus-monitor" target))
 
-(defun komorebi-api-mouse-follows-focus (boolean-state)
-  "Mouse follows focus with BOOLEAN-STATE."
-  (komorebi-api--execute "mouse-follows-focus" boolean-state))
+(cl-defun komorebi-api-focus-monitor-workspace (&key target-monitor target-workspace)
+  "Focus the specified workspace on the target monitor.
+TARGET-MONITOR
+   Target monitor index (zero-indexed)
+TARGET-WORKSPACE
+   Workspace index on the target monitor (zero-indexed)"
+  (komorebi-api--execute "focus-monitor-workspace" target-monitor target-workspace))
 
-(defun komorebi-api-toggle-mouse-follows-focus ()
-  "Toggle mouse follows focus."
-  (komorebi-api--execute "toggle-mouse-follows-focus"))
+(cl-defun komorebi-api-focus-named-workspace (&key workspace)
+  "Focus the specified workspace.
+WORKSPACE
+   Target workspace name"
+  (komorebi-api--execute "focus-named-workspace" workspace))
 
-(defun komorebi-api-ahk-library ()
-  "Ahk library."
-  (komorebi-api--execute "ahk-library"))
+(cl-defun komorebi-api-focus-stack-window (&key target)
+  "Focus the specified window index in the focused stack.
+TARGET
+   Target index (zero-indexed)"
+  (komorebi-api--execute "focus-stack-window" target))
 
-(defun komorebi-api-ahk-app-specific-configuration (path override-path)
-  "Ahk app specific configuration with PATH and OVERRIDE-PATH."
-  (komorebi-api--execute "ahk-app-specific-configuration" path override-path))
+(cl-defun komorebi-api-focus-workspace (&key target)
+  "Focus the specified workspace on the focused monitor.
+TARGET
+   Target index (zero-indexed)"
+  (komorebi-api--execute "focus-workspace" target))
 
-(defun komorebi-api-pwsh-app-specific-configuration (path override-path)
-  "Pwsh app specific configuration with PATH and OVERRIDE-PATH."
-  (komorebi-api--execute "pwsh-app-specific-configuration" path override-path))
+(cl-defun komorebi-api-focus-workspaces (&key target)
+  "Focus the specified workspace on all monitors.
+TARGET
+   Target index (zero-indexed)"
+  (komorebi-api--execute "focus-workspaces" target))
 
-(defun komorebi-api-format-app-specific-configuration (path)
-  "Format app specific configuration with PATH."
+(cl-defun komorebi-api-focused-workspace-container-padding (&key size)
+  "Set container padding on the focused workspace.
+SIZE
+   Pixels size to set as an integer"
+  (komorebi-api--execute "focused-workspace-container-padding" size))
+
+(cl-defun komorebi-api-focused-workspace-padding (&key size)
+  "Set workspace padding on the focused workspace.
+SIZE
+   Pixels size to set as an integer"
+  (komorebi-api--execute "focused-workspace-padding" size))
+
+(cl-defun komorebi-api-format-app-specific-configuration (&key path)
+  "Format a YAML file for use with the 'ahk-app-specific-configuration' command.
+PATH
+   YAML file from which the application-specific configurations should be loaded"
   (komorebi-api--execute "format-app-specific-configuration" path))
 
-(defun komorebi-api-notification-schema ()
-  "Notification schema."
+(cl-defun komorebi-api-global-work-area-offset (&key left top right bottom)
+  "Set offsets to exclude parts of the work area from tiling.
+LEFT
+
+TOP
+
+RIGHT
+   Size of the right work area offset
+BOTTOM
+   Size of the bottom work area offset"
+  (komorebi-api--execute "global-work-area-offset" left top right bottom))
+
+(cl-defun komorebi-api-identify-layered-application (&key identifier id)
+  "Identify an application that has WS_EX_LAYERED, but should still be managed.
+IDENTIFIER
+   [possible values: exe, class, title, path]
+ID
+   Identifier as a string"
+  (komorebi-api--execute "identify-layered-application" identifier id))
+
+(cl-defun komorebi-api-identify-object-name-change-application (&key identifier id)
+  "Identify an application that sends EVENT_OBJECT_NAMECHANGE on launch.
+IDENTIFIER
+   [possible values: exe, class, title, path]
+ID
+   Identifier as a string"
+  (komorebi-api--execute "identify-object-name-change-application" identifier id))
+
+(cl-defun komorebi-api-identify-tray-application (&key identifier id)
+  "Identify an application that closes to the system tray.
+IDENTIFIER
+   [possible values: exe, class, title, path]
+ID
+   Identifier as a string"
+  (komorebi-api--execute "identify-tray-application" identifier id))
+
+(cl-defun komorebi-api-initial-named-workspace-rule (&key identifier id workspace)
+  "Add a rule to associate an application with a named workspace on first show.
+IDENTIFIER
+   [possible values: exe, class, title, path]
+ID
+   Identifier as a string
+WORKSPACE
+   Name of a workspace"
+  (komorebi-api--execute "initial-named-workspace-rule" identifier id workspace))
+
+(cl-defun komorebi-api-initial-workspace-rule (&key identifier id monitor workspace)
+  "Add a rule to associate an application with a workspace on first show.
+IDENTIFIER
+   [possible values: exe, class, title, path]
+ID
+   Identifier as a string
+MONITOR
+   Monitor index (zero-indexed)
+WORKSPACE
+   Workspace index on the specified monitor (zero-indexed)"
+  (komorebi-api--execute "initial-workspace-rule" identifier id monitor workspace))
+
+(cl-defun komorebi-api-invisible-borders (&key left top right bottom)
+  "Set the invisible border dimensions around each window.
+LEFT
+   Size of the left invisible border
+TOP
+   Size of the top invisible border (usually 0)
+RIGHT
+   Size of the right invisible border (usually left * 2)
+BOTTOM
+   Size of the bottom invisible border (usually the same as left)"
+  (komorebi-api--execute "invisible-borders" left top right bottom))
+
+(cl-defun komorebi-api-load-custom-layout (&key path)
+  "Load a custom layout from file for the focused workspace.
+PATH
+   JSON or YAML file from which the custom layout definition should be loaded"
+  (komorebi-api--execute "load-custom-layout" path))
+
+(cl-defun komorebi-api-load-resize (&key path)
+  "Load the resize layout dimensions from a file.
+PATH
+   File from which the resize layout dimensions should be loaded"
+  (komorebi-api--execute "load-resize" path))
+
+(cl-defun komorebi-api-manage-rule (&key identifier id)
+  "Add a rule to always manage the specified application.
+IDENTIFIER
+   [possible values: exe, class, title, path]
+ID
+   Identifier as a string"
+  (komorebi-api--execute "manage-rule" identifier id))
+
+(cl-defun komorebi-api-monitor-index-preference (&key index-preference left top right bottom)
+  "Set the monitor index preference for a monitor identified using its size.
+INDEX-PREFERENCE
+   Preferred monitor index (zero-indexed)
+LEFT
+   Left value of the monitor's size Rect
+TOP
+   Top value of the monitor's size Rect
+RIGHT
+   Right value of the monitor's size Rect
+BOTTOM
+   Bottom value of the monitor's size Rect"
+  (komorebi-api--execute "monitor-index-preference" index-preference left top right bottom))
+
+(cl-defun komorebi-api-monitor-work-area-offset (&key monitor left top right bottom)
+  "Set offsets for a monitor to exclude parts of the work area from tiling.
+MONITOR
+   Monitor index (zero-indexed)
+LEFT
+
+TOP
+
+RIGHT
+   Size of the right work area offset
+BOTTOM
+   Size of the bottom work area offset"
+  (komorebi-api--execute "monitor-work-area-offset" monitor left top right bottom))
+
+(cl-defun komorebi-api-mouse-follows-focus (&key boolean-state)
+  "Enable or disable mouse follows focus on all workspaces.
+BOOLEAN-STATE
+   [possible values: enable, disable]"
+  (komorebi-api--execute "mouse-follows-focus" boolean-state))
+
+(cl-defun komorebi-api-move (&key operation-direction)
+  "Move the focused window in the specified direction.
+OPERATION-DIRECTION
+   [possible values: left, right, up, down]"
+  (komorebi-api--execute "move" operation-direction))
+
+(cl-defun komorebi-api-move-to-monitor (&key target)
+  "Move the focused window to the specified monitor.
+TARGET
+   Target index (zero-indexed)"
+  (komorebi-api--execute "move-to-monitor" target))
+
+(cl-defun komorebi-api-move-to-monitor-workspace (&key target-monitor target-workspace)
+  "Move the focused window to the specified monitor workspace.
+TARGET-MONITOR
+   Target monitor index (zero-indexed)
+TARGET-WORKSPACE
+   Workspace index on the target monitor (zero-indexed)"
+  (komorebi-api--execute "move-to-monitor-workspace" target-monitor target-workspace))
+
+(cl-defun komorebi-api-move-to-named-workspace (&key workspace)
+  "Move the focused window to the specified workspace.
+WORKSPACE
+   Target workspace name"
+  (komorebi-api--execute "move-to-named-workspace" workspace))
+
+(cl-defun komorebi-api-move-to-workspace (&key target)
+  "Move the focused window to the specified workspace.
+TARGET
+   Target index (zero-indexed)"
+  (komorebi-api--execute "move-to-workspace" target))
+
+(cl-defun komorebi-api-move-workspace-to-monitor (&key target)
+  "Move the focused workspace to the specified monitor.
+TARGET
+   Target index (zero-indexed)"
+  (komorebi-api--execute "move-workspace-to-monitor" target))
+
+(cl-defun komorebi-api-named-workspace-container-padding (&key workspace size)
+  "Set the container padding for the specified workspace.
+WORKSPACE
+   Target workspace name
+SIZE
+   Pixels to pad with as an integer"
+  (komorebi-api--execute "named-workspace-container-padding" workspace size))
+
+(cl-defun komorebi-api-named-workspace-custom-layout (&key workspace path)
+  "Set a custom layout for the specified workspace.
+WORKSPACE
+   Target workspace name
+PATH
+   JSON or YAML file from which the custom layout definition should be loaded"
+  (komorebi-api--execute "named-workspace-custom-layout" workspace path))
+
+(cl-defun komorebi-api-named-workspace-custom-layout-rule (&key workspace at-container-count path)
+  "Add a dynamic custom layout for the specified workspace.
+WORKSPACE
+   Target workspace name
+AT-CONTAINER-COUNT
+   The number of window containers on-screen required to trigger this layout rule
+PATH
+   JSON or YAML file from which the custom layout definition should be loaded"
+  (komorebi-api--execute "named-workspace-custom-layout-rule" workspace at-container-count path))
+
+(cl-defun komorebi-api-named-workspace-layout (&key workspace value)
+  "Set the layout for the specified workspace.
+WORKSPACE
+   Target workspace name
+VALUE
+   [possible values:
+- bsp
+- columns
+- rows
+- vertical-stack
+- horizontal-stack
+- ultrawide-vertical-stack
+- grid
+- right-main-vertical-stack]"
+  (komorebi-api--execute "named-workspace-layout" workspace value))
+
+(cl-defun komorebi-api-named-workspace-layout-rule (&key workspace at-container-count layout)
+  "Add a dynamic layout rule for the specified workspace.
+WORKSPACE
+   Target workspace name
+AT-CONTAINER-COUNT
+   The number of window containers on-screen required to trigger this layout rule
+LAYOUT
+   [possible values:
+- bsp
+- columns
+- rows
+- vertical-stack
+- horizontal-stack
+- ultrawide-vertical-stack
+- grid
+- right-main-vertical-stack]"
+  (komorebi-api--execute "named-workspace-layout-rule" workspace at-container-count layout))
+
+(cl-defun komorebi-api-named-workspace-padding (&key workspace size)
+  "Set the workspace padding for the specified workspace.
+WORKSPACE
+   Target workspace name
+SIZE
+   Pixels to pad with as an integer"
+  (komorebi-api--execute "named-workspace-padding" workspace size))
+
+(cl-defun komorebi-api-named-workspace-rule (&key identifier id workspace)
+  "Add a rule to associate an application with a named workspace.
+IDENTIFIER
+   [possible values: exe, class, title, path]
+ID
+   Identifier as a string
+WORKSPACE
+   Name of a workspace"
+  (komorebi-api--execute "named-workspace-rule" identifier id workspace))
+
+(cl-defun komorebi-api-named-workspace-tiling (&key workspace value)
+  "Enable or disable window tiling for the specified workspace.
+WORKSPACE
+   Target workspace name
+VALUE
+   [possible values: enable, disable]"
+  (komorebi-api--execute "named-workspace-tiling" workspace value))
+
+(cl-defun komorebi-api-promote-window (&key operation-direction)
+  "Promote the window in the specified direction.
+OPERATION-DIRECTION
+   [possible values: left, right, up, down]"
+  (komorebi-api--execute "promote-window" operation-direction))
+
+(cl-defun komorebi-api-pwsh-app-specific-configuration (&key path)
+  "Generate common app-specific configurations and fixes in a PowerShell script.
+PATH
+   "
+  (komorebi-api--execute "pwsh-app-specific-configuration" path))
+
+(cl-defun komorebi-api-query (&key state-query)
+  "Query the current window manager state.
+STATE-QUERY
+   [possible values:
+- focused-monitor-index
+- focused-workspace-index
+- focused-container-index
+- focused-window-index]"
+  (komorebi-api--execute "query" state-query))
+
+(cl-defun komorebi-api-remove-title-bar (&key identifier id)
+  "Whitelist an application for title bar removal.
+IDENTIFIER
+   [possible values: exe, class, title, path]
+ID
+   Identifier as a string"
+  (komorebi-api--execute "remove-title-bar" identifier id))
+
+(cl-defun komorebi-api-replace-configuration (&key path)
+  "
+PATH
+   Static configuration JSON file from which the configuration should be loaded"
+  (komorebi-api--execute "replace-configuration" path))
+
+(cl-defun komorebi-api-resize-axis (&key axis sizing)
+  "Resize the focused window or primary column along the specified axis.
+AXIS
+   [possible values: horizontal, vertical, horizontal-and-vertical]
+SIZING
+   [possible values: increase, decrease]"
+  (komorebi-api--execute "resize-axis" axis sizing))
+
+(cl-defun komorebi-api-resize-delta (&key pixels)
+  "Set the resize delta (used by resize-edge and resize-axis).
+PIXELS
+   "
+  (komorebi-api--execute "resize-delta" pixels))
+
+(cl-defun komorebi-api-resize-edge (&key edge sizing)
+  "Resize the focused window in the specified direction.
+EDGE
+   [possible values: left, right, up, down]
+SIZING
+   [possible values: increase, decrease]"
+  (komorebi-api--execute "resize-edge" edge sizing))
+
+(cl-defun komorebi-api-save-resize (&key path)
+  "Save the current resize layout dimensions to a file.
+PATH
+   File to which the resize layout dimensions should be saved"
+  (komorebi-api--execute "save-resize" path))
+
+(cl-defun komorebi-api-send-to-monitor (&key target)
+  "Send the focused window to the specified monitor.
+TARGET
+   Target index (zero-indexed)"
+  (komorebi-api--execute "send-to-monitor" target))
+
+(cl-defun komorebi-api-send-to-monitor-workspace (&key target-monitor target-workspace)
+  "Send the focused window to the specified monitor workspace.
+TARGET-MONITOR
+   Target monitor index (zero-indexed)
+TARGET-WORKSPACE
+   Workspace index on the target monitor (zero-indexed)"
+  (komorebi-api--execute "send-to-monitor-workspace" target-monitor target-workspace))
+
+(cl-defun komorebi-api-send-to-named-workspace (&key workspace)
+  "Send the focused window to the specified workspace.
+WORKSPACE
+   Target workspace name"
+  (komorebi-api--execute "send-to-named-workspace" workspace))
+
+(cl-defun komorebi-api-send-to-workspace (&key target)
+  "Send the focused window to the specified workspace.
+TARGET
+   Target index (zero-indexed)"
+  (komorebi-api--execute "send-to-workspace" target))
+
+(cl-defun komorebi-api-stack (&key operation-direction)
+  "Stack the focused window in the specified direction.
+OPERATION-DIRECTION
+   [possible values: left, right, up, down]"
+  (komorebi-api--execute "stack" operation-direction))
+
+(cl-defun komorebi-api-subscribe-pipe (&key named-pipe)
+  "Subscribe to komorebi events using a Named Pipe.
+NAMED-PIPE
+   Name of the pipe to send event notifications to (without '.pipe' prepended)"
+  (komorebi-api--execute "subscribe-pipe" named-pipe))
+
+(cl-defun komorebi-api-subscribe-socket (&key socket)
+  "Subscribe to komorebi events using a Unix Domain Socket.
+SOCKET
+   Name of the socket to send event notifications to"
+  (komorebi-api--execute "subscribe-socket" socket))
+
+(cl-defun komorebi-api-swap-workspaces-with-monitor (&key target)
+  "Swap focused monitor workspaces with specified monitor.
+TARGET
+   Target index (zero-indexed)"
+  (komorebi-api--execute "swap-workspaces-with-monitor" target))
+
+(cl-defun komorebi-api-toggle-focus-follows-mouse (&key implementation)
+  "Toggle focus follows mouse for the operating system.
+IMPLEMENTATION
+   "
+  (komorebi-api--execute "toggle-focus-follows-mouse" implementation))
+
+(cl-defun komorebi-api-transparency (&key boolean-state)
+  "Enable or disable transparency for unfocused windows.
+BOOLEAN-STATE
+   [possible values: enable, disable]"
+  (komorebi-api--execute "transparency" boolean-state))
+
+(cl-defun komorebi-api-transparency-alpha (&key alpha)
+  "Set the alpha value for unfocused window transparency.
+ALPHA
+   Alpha"
+  (komorebi-api--execute "transparency-alpha" alpha))
+
+(cl-defun komorebi-api-unmanaged-window-operation-behaviour (&key operation-behaviour)
+  "Set the operation behaviour when the focused window is not managed.
+OPERATION-BEHAVIOUR
+   "
+  (komorebi-api--execute "unmanaged-window-operation-behaviour" operation-behaviour))
+
+(cl-defun komorebi-api-unsubscribe-pipe (&key named-pipe)
+  "Unsubscribe from komorebi events.
+NAMED-PIPE
+   "
+  (komorebi-api--execute "unsubscribe-pipe" named-pipe))
+
+(cl-defun komorebi-api-unsubscribe-socket (&key socket)
+  "Unsubscribe from komorebi events.
+SOCKET
+   Name of the socket to stop sending event notifications to"
+  (komorebi-api--execute "unsubscribe-socket" socket))
+
+(cl-defun komorebi-api-watch-configuration (&key boolean-state)
+  "
+BOOLEAN-STATE
+   [possible values: enable, disable]"
+  (komorebi-api--execute "watch-configuration" boolean-state))
+
+(cl-defun komorebi-api-window-hiding-behaviour (&key hiding-behaviour)
+  "Set the window behaviour when switching workspaces / cycling stacks.
+HIDING-BEHAVIOUR
+   "
+  (komorebi-api--execute "window-hiding-behaviour" hiding-behaviour))
+
+(cl-defun komorebi-api-workspace-custom-layout (&key monitor workspace path)
+  "Set a custom layout for the specified workspace.
+MONITOR
+   Monitor index (zero-indexed)
+WORKSPACE
+   Workspace index on the specified monitor (zero-indexed)
+PATH
+   JSON or YAML file from which the custom layout definition should be loaded"
+  (komorebi-api--execute "workspace-custom-layout" monitor workspace path))
+
+(cl-defun komorebi-api-workspace-custom-layout-rule (&key monitor workspace at-container-count path)
+  "Add a dynamic custom layout for the specified workspace.
+MONITOR
+   Monitor index (zero-indexed)
+WORKSPACE
+   Workspace index on the specified monitor (zero-indexed)
+AT-CONTAINER-COUNT
+   The number of window containers on-screen required to trigger this layout rule
+PATH
+   JSON or YAML file from which the custom layout definition should be loaded"
+  (komorebi-api--execute "workspace-custom-layout-rule" monitor workspace at-container-count path))
+
+(cl-defun komorebi-api-workspace-layout (&key monitor workspace value)
+  "Set the layout for the specified workspace.
+MONITOR
+   Monitor index (zero-indexed)
+WORKSPACE
+   Workspace index on the specified monitor (zero-indexed)
+VALUE
+   [possible values:
+- bsp
+- columns
+- rows
+- vertical-stack
+- horizontal-stack
+- ultrawide-vertical-stack
+- grid
+- right-main-vertical-stack]"
+  (komorebi-api--execute "workspace-layout" monitor workspace value))
+
+(cl-defun komorebi-api-workspace-layout-rule (&key monitor workspace at-container-count layout)
+  "Add a dynamic layout rule for the specified workspace.
+MONITOR
+   Monitor index (zero-indexed)
+WORKSPACE
+   Workspace index on the specified monitor (zero-indexed)
+AT-CONTAINER-COUNT
+   The number of window containers on-screen required to trigger this layout rule
+LAYOUT
+   [possible values:
+- bsp
+- columns
+- rows
+- vertical-stack
+- horizontal-stack
+- ultrawide-vertical-stack
+- grid
+- right-main-vertical-stack]"
+  (komorebi-api--execute "workspace-layout-rule" monitor workspace at-container-count layout))
+
+(cl-defun komorebi-api-workspace-name (&key monitor workspace value)
+  "Set the workspace name for the specified workspace.
+MONITOR
+   Monitor index (zero-indexed)
+WORKSPACE
+   Workspace index on the specified monitor (zero-indexed)
+VALUE
+   Name of the workspace as a String"
+  (komorebi-api--execute "workspace-name" monitor workspace value))
+
+(cl-defun komorebi-api-workspace-padding (&key monitor workspace size)
+  "Set the workspace padding for the specified workspace.
+MONITOR
+   Monitor index (zero-indexed)
+WORKSPACE
+   Workspace index on the specified monitor (zero-indexed)
+SIZE
+   Pixels to pad with as an integer"
+  (komorebi-api--execute "workspace-padding" monitor workspace size))
+
+(cl-defun komorebi-api-workspace-rule (&key identifier id monitor workspace)
+  "Add a rule to associate an application with a workspace.
+IDENTIFIER
+   [possible values: exe, class, title, path]
+ID
+   Identifier as a string
+MONITOR
+   Monitor index (zero-indexed)
+WORKSPACE
+   Workspace index on the specified monitor (zero-indexed)"
+  (komorebi-api--execute "workspace-rule" identifier id monitor workspace))
+
+(cl-defun komorebi-api-workspace-tiling (&key monitor workspace value)
+  "Enable or disable window tiling for the specified workspace.
+MONITOR
+   Monitor index (zero-indexed)
+WORKSPACE
+   Workspace index on the specified monitor (zero-indexed)
+VALUE
+   [possible values: enable, disable]"
+  (komorebi-api--execute "workspace-tiling" monitor workspace value))
+
+;;;###autoload
+(cl-defun komorebi-application-specific-configuration-schema ()
+  "Generate a JSON Schema for applications.yaml."
+  (interactive)
+  (komorebi-api--execute "application-specific-configuration-schema"))
+
+;;;###autoload
+(cl-defun komorebi-bar-configuration ()
+  "Show the path to komorebi.bar.json."
+  (interactive)
+  (komorebi-api--execute "bar-configuration"))
+
+;;;###autoload
+(cl-defun komorebi-check ()
+  "Check komorebi configuration and related files for common errors."
+  (interactive)
+  (komorebi-api--execute "check"))
+
+;;;###autoload
+(cl-defun komorebi-clear-all-workspace-rules ()
+  "Remove all application association rules for all workspaces."
+  (interactive)
+  (komorebi-api--execute "clear-all-workspace-rules"))
+
+;;;###autoload
+(cl-defun komorebi-close ()
+  "Close the focused window."
+  (interactive)
+  (komorebi-api--execute "close"))
+
+;;;###autoload
+(cl-defun komorebi-complete-configuration ()
+  ""
+  (interactive)
+  (komorebi-api--execute "complete-configuration"))
+
+;;;###autoload
+(cl-defun komorebi-configuration ()
+  "Show the path to komorebi.json."
+  (interactive)
+  (komorebi-api--execute "configuration"))
+
+;;;###autoload
+(cl-defun komorebi-disable-autostart ()
+  "Deletes the komorebi.lnk shortcut in shell:startup to disable autostart."
+  (interactive)
+  (komorebi-api--execute "disable-autostart"))
+
+;;;###autoload
+(cl-defun komorebi-fetch-app-specific-configuration ()
+  ""
+  (interactive)
+  (komorebi-api--execute "fetch-app-specific-configuration"))
+
+;;;###autoload
+(cl-defun komorebi-focus-last-workspace ()
+  "Focus the last focused workspace on the focused monitor."
+  (interactive)
+  (komorebi-api--execute "focus-last-workspace"))
+
+;;;###autoload
+(cl-defun komorebi-force-focus ()
+  "Forcibly focus the window at the cursor with a left mouse click."
+  (interactive)
+  (komorebi-api--execute "force-focus"))
+
+;;;###autoload
+(cl-defun komorebi-generate-static-config ()
+  ""
+  (interactive)
+  (komorebi-api--execute "generate-static-config"))
+
+;;;###autoload
+(cl-defun komorebi-global-state ()
+  "Show a JSON representation of the current global state."
+  (interactive)
+  (komorebi-api--execute "global-state"))
+
+;;;###autoload
+(cl-defun komorebi-gui ()
+  "Launch the komorebi-gui debugging tool."
+  (interactive)
+  (komorebi-api--execute "gui"))
+
+;;;###autoload
+(cl-defun komorebi-log ()
+  "Tail komorebi.exe's process logs (cancel with Ctrl-C)."
+  (interactive)
+  (komorebi-api--execute "log"))
+
+;;;###autoload
+(cl-defun komorebi-manage ()
+  "Force komorebi to manage the focused window."
+  (interactive)
+  (komorebi-api--execute "manage"))
+
+;;;###autoload
+(cl-defun komorebi-minimize ()
+  "Minimize the focused window."
+  (interactive)
+  (komorebi-api--execute "minimize"))
+
+;;;###autoload
+(cl-defun komorebi-monitor-information ()
+  "Show information about connected monitors."
+  (interactive)
+  (komorebi-api--execute "monitor-information"))
+
+;;;###autoload
+(cl-defun komorebi-new-workspace ()
+  "Create and append a new workspace on the focused monitor."
+  (interactive)
+  (komorebi-api--execute "new-workspace"))
+
+;;;###autoload
+(cl-defun komorebi-notification-schema ()
+  "Generate a JSON Schema of subscription notifications."
+  (interactive)
   (komorebi-api--execute "notification-schema"))
 
-(defun komorebi-api-socket-schema ()
-  "Socket schema."
+;;;###autoload
+(cl-defun komorebi-promote ()
+  "Promote the focused window to the top of the tree."
+  (interactive)
+  (komorebi-api--execute "promote"))
+
+;;;###autoload
+(cl-defun komorebi-promote-focus ()
+  "Promote the user focus to the top of the tree."
+  (interactive)
+  (komorebi-api--execute "promote-focus"))
+
+;;;###autoload
+(cl-defun komorebi-quick-load-resize ()
+  "Load the last quicksaved resize layout dimensions."
+  (interactive)
+  (komorebi-api--execute "quick-load-resize"))
+
+;;;###autoload
+(cl-defun komorebi-quick-save-resize ()
+  "Quicksave the current resize layout dimensions."
+  (interactive)
+  (komorebi-api--execute "quick-save-resize"))
+
+;;;###autoload
+(cl-defun komorebi-quickstart ()
+  "Gather example configurations for a new-user quickstart."
+  (interactive)
+  (komorebi-api--execute "quickstart"))
+
+;;;###autoload
+(cl-defun komorebi-reload-configuration ()
+  "Reload legacy komorebi.ahk or komorebi.ps1 configurations (if they exist)."
+  (interactive)
+  (komorebi-api--execute "reload-configuration"))
+
+;;;###autoload
+(cl-defun komorebi-restore-windows ()
+  "Restore all hidden windows (debugging command)."
+  (interactive)
+  (komorebi-api--execute "restore-windows"))
+
+;;;###autoload
+(cl-defun komorebi-retile ()
+  "Force the retiling of all managed windows."
+  (interactive)
+  (komorebi-api--execute "retile"))
+
+;;;###autoload
+(cl-defun komorebi-socket-schema ()
+  "Generate a JSON Schema of socket messages."
+  (interactive)
   (komorebi-api--execute "socket-schema"))
 
+;;;###autoload
+(cl-defun komorebi-stack-all ()
+  "Stack all windows on the focused workspace."
+  (interactive)
+  (komorebi-api--execute "stack-all"))
+
+;;;###autoload
+(cl-defun komorebi-start ()
+  "Start komorebi.exe as a background process."
+  (interactive)
+  (komorebi-api--execute "start"))
+
+;;;###autoload
+(cl-defun komorebi-state ()
+  "Show a JSON representation of the current window manager state."
+  (interactive)
+  (komorebi-api--execute "state"))
+
+;;;###autoload
+(cl-defun komorebi-static-config-schema ()
+  "Generate a JSON Schema of the static configuration file."
+  (interactive)
+  (komorebi-api--execute "static-config-schema"))
+
+;;;###autoload
+(cl-defun komorebi-stop ()
+  "
+.
+
+"
+  (interactive)
+  (komorebi-api--execute "stop"))
+
+;;;###autoload
+(cl-defun komorebi-toggle-cross-monitor-move-behaviour ()
+  "Toggle the behaviour when moving windows across monitor boundaries."
+  (interactive)
+  (komorebi-api--execute "toggle-cross-monitor-move-behaviour"))
+
+;;;###autoload
+(cl-defun komorebi-toggle-float ()
+  "Toggle floating mode for the focused window."
+  (interactive)
+  (komorebi-api--execute "toggle-float"))
+
+;;;###autoload
+(cl-defun komorebi-toggle-maximize ()
+  "Toggle native maximization for the focused window."
+  (interactive)
+  (komorebi-api--execute "toggle-maximize"))
+
+;;;###autoload
+(cl-defun komorebi-toggle-monocle ()
+  "Toggle monocle mode for the focused container."
+  (interactive)
+  (komorebi-api--execute "toggle-monocle"))
+
+;;;###autoload
+(cl-defun komorebi-toggle-mouse-follows-focus ()
+  "Toggle mouse follows focus on all workspaces."
+  (interactive)
+  (komorebi-api--execute "toggle-mouse-follows-focus"))
+
+;;;###autoload
+(cl-defun komorebi-toggle-pause ()
+  "Toggle window tiling on the focused workspace."
+  (interactive)
+  (komorebi-api--execute "toggle-pause"))
+
+;;;###autoload
+(cl-defun komorebi-toggle-tiling ()
+  "Toggle window tiling on the focused workspace."
+  (interactive)
+  (komorebi-api--execute "toggle-tiling"))
+
+;;;###autoload
+(cl-defun komorebi-toggle-title-bars ()
+  "Toggle title bars for whitelisted applications."
+  (interactive)
+  (komorebi-api--execute "toggle-title-bars"))
+
+;;;###autoload
+(cl-defun komorebi-toggle-transparency ()
+  "Toggle transparency for unfocused windows."
+  (interactive)
+  (komorebi-api--execute "toggle-transparency"))
+
+;;;###autoload
+(cl-defun komorebi-toggle-window-container-behaviour ()
+  "Toggle the behaviour for new windows (stacking or dynamic tiling)."
+  (interactive)
+  (komorebi-api--execute "toggle-window-container-behaviour"))
+
+;;;###autoload
+(cl-defun komorebi-unmanage ()
+  "Unmanage a window that was forcibly managed."
+  (interactive)
+  (komorebi-api--execute "unmanage"))
+
+;;;###autoload
+(cl-defun komorebi-unstack ()
+  "Unstack the focused window."
+  (interactive)
+  (komorebi-api--execute "unstack"))
+
+;;;###autoload
+(cl-defun komorebi-unstack-all ()
+  "Unstack all windows in the focused container."
+  (interactive)
+  (komorebi-api--execute "unstack-all"))
+
+;;;###autoload
+(cl-defun komorebi-visible-windows ()
+  "Show a JSON representation of visible windows."
+  (interactive)
+  (komorebi-api--execute "visible-windows"))
+
+;;;###autoload
+(cl-defun komorebi-whkdrc ()
+  "Show the path to whkdrc."
+  (interactive)
+  (komorebi-api--execute "whkdrc"))
+;;; End generated functions
 
 (provide 'komorebi-api)
 ;;; komorebi-api.el ends here
