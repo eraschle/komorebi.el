@@ -179,93 +179,101 @@
   "Return the URL for CMD."
   (concat komorebi-web-docs-url "/" (oref cmd location)))
 
-(defun komorebi-web--ensure-not-empty-line ()
+
+(defvar komorebi-web-cli-option-value "Options:"
+  "String of the option value on the komorebi website.")
+
+(defvar komorebi-web-cli-argument-value "Arguments:"
+  "String of the argument value on the komorebi website.")
+
+(defvar komorebi-web-cli-description-sep " ::: "
+  "String to separate the description from the option or argument.")
+
+(defvar komorebi-web-cli-description-multiline " ;;; "
+  "String to separate multi line description.")
+
+(defun komorebi-web--is-option-or-argument (value)
+  "Return non-nil if VALUE is an option or argument."
+  (or (string-prefix-p "-" value)
+      (string-prefix-p "<" value)))
+
+(defun komorebi-web--clean-content ()
   "Delete all empty lines at the beginning of the current buffer."
+  (goto-char (point-max))
+  (while (not (bobp))
+    (let* ((orig-line (buffer-substring-no-properties (pos-bol) (pos-eol)))
+           (cleaned (string-trim orig-line)))
+      (unless (string-empty-p cleaned)
+        (message "%s >> %s" orig-line cleaned)
+        (replace-string-in-region orig-line cleaned (pos-bol) (pos-eol))
+        (cond ((or (string-prefix-p komorebi-web-cli-option-value cleaned)
+                   (string-prefix-p komorebi-web-cli-argument-value cleaned))
+               (goto-char (match-beginning 0))
+               (message "Is option or argument title %s" cleaned)
+               (delete-line))
+              ((not (or (string-empty-p cleaned)
+                        (komorebi-web--is-option-or-argument cleaned)))
+               (message "Is multi line description of option or argument %s" cleaned)
+               (goto-char (pos-eol))
+               (insert komorebi-web-cli-description-multiline)
+               (join-line t))
+              ((and (not (string-empty-p cleaned))
+                    (komorebi-web--is-option-or-argument cleaned))
+               (message "Is option or argument %s" cleaned)
+               (goto-char (pos-eol))
+               (insert komorebi-web-cli-description-sep)
+               (join-line t)))))
+    (forward-line -1)
+    (goto-char (pos-bol))))
+
+
+(defun komorebi-web--content-lines ()
+  "Return the lines of the current buffer as a list of strings."
   (goto-char (point-min))
-  (while (and (not (eobp))
-              (string-empty-p (string-trim (buffer-substring-no-properties (point-min) (line-end-position)))))
-    (delete-line))
-  (goto-char (point-min)))
+  (komorebi-web--clean-content)
+  (let ((text (buffer-substring-no-properties (point-min) (point-max))))
+    (delete-region (point-min) (point-max))
+    (string-split text "\n" t "[ \t\n]*")))
 
-(defun komorebi-web--arg-description (description)
+(defun komorebi-web--description-get (description)
   "Return the DESCRIPTION of ARGUMENT or OPTION."
-  (let ((desc (replace-regexp-in-string
-               "[ ]\{2,\}" "\n"
-               (string-trim description))))
-    (if (length> desc 80)
-        (if (and (s-contains? "," desc) (string-match "\\(.*\\):\\(.*\\)" desc))
-            (format "%s:\n%s"
-                    (string-replace "[possible values:" "possible values:"(match-string 1 desc))
-                    (string-join (seq-map (lambda (val)
-                                            (if (string-prefix-p "- " val)
-                                                val
-                                              (format "- %s" val)))
-                                          (string-split (match-string 2 desc) "," t "[ \t\n]*"))
-                                 "\n"))
-          ;; No possible values
-          (string-join (string-split desc "\." t "[ \t\n]*") "\n"))
-      desc)))
+  (if (or (null description) (string-empty-p description))
+      ""
+    (string-join
+     (string-split description
+                   komorebi-web-cli-description-multiline
+                   t "[ \t\n]*") "\n")))
 
-
-(defvar komorebi-web-cli-option-regex "\\(?:\\(?1:-[^ ,]\\),\\)[ ]+\\(?2:--[^ ]+\\)[ ]+\\(?3:<\\(?4:.*\\)>\\)?\\(?5:.*\\)"
+(defvar komorebi-web-cli-option-regex "\\(?1:-[^, ]*\\)\\(?2:--[^ ]*\\)[ ]?\\(?3:<[^ ]*>\\)"
   "Regex to match a CLI OPTION from text on the komorebi website.")
 
 (defun komorebi-web--cli-options-p ()
   "Return non-nil if the current buffer contain a list of options."
   (goto-char (point-min))
-  (search-forward "Options:" nil t))
+  (search-forward komorebi-web-cli-option-value nil t))
 
-(defun komorebi-web--cli-option-create (text)
-  "Return a plist for a CLI OPTION from TEXT."
-  (unless (string-empty-p (string-trim text))
-    (let* ((lines (string-split text "\n" t "[ \t\n]*"))
-           (desc-lines (seq-map
-                        #'string-trim
-                        (seq-filter
-                         (lambda (line)
-                           (if (s-contains? "help" (car lines)) t
-                             (not (s-contains? "help" line t))))
-                         (cdr lines)))))
-      (when (string-match komorebi-web-cli-option-regex (car lines))
-        (list :name (string-remove-prefix "--" (match-string 2 (car lines)))
-              :short (if (match-string 1 (car lines)) (string-trim (match-string 1 (car lines))) "")
-              :long (if (match-string 2 (car lines)) (string-trim (match-string 2 (car lines))) "")
-              :description (komorebi-web--arg-description
-                            (string-join (seq-map (lambda (line)
-                                                    (string-trim
-                                                     (replace-regexp-in-string
-                                                      "[ \\[]*\\(possible values:\\)"
-                                                      "\\1"
-                                                      (if (and (not (s-contains? "[" line))
-                                                               (string-suffix-p "]" (string-trim line)))
-                                                          (string-remove-suffix "]" (string-trim-right line))
-                                                        line))
-                                                     "[\[\t\n]*" "[ \t\n\]]*"))
-                                                  desc-lines)
-                                         "\n")))))))
+(defun komorebi-web--cli-option-create (option description)
+  "Return a plist for a CLI OPTION from OPTION and DESCRIPTION."
+  (unless (string-empty-p (string-trim option))
+    (when (string-match komorebi-web-cli-option-regex option)
+      (list :name (string-remove-prefix "--" (match-string 3 option))
+            :short (if (match-string 1 option) (string-trim (match-string 1 option)) "")
+            :long (if (match-string 2 option) (string-trim (match-string 2 option)) "")
+            :arg (if (match-string 3 option) (string-trim (match-string 3 option)) "")
+            :description (komorebi-web--description-get description)))))
 
 (defun komorebi-web--cli-options-plist ()
   "Return plist with command options from the komorebi website."
   (when (komorebi-web--cli-options-p)
     (narrow-to-region (match-beginning 0) (point-max))
     (goto-char (point-min))
-    (delete-line)
-    (komorebi-web--ensure-not-empty-line)
-    (forward-char 1)
     (let ((options nil)
-          (cur-end-of-line (pos-eol)))
-      (while (re-search-forward komorebi-web-cli-option-regex (point-max) t)
-        (goto-char (match-beginning 0))
-        (when (< (point) cur-end-of-line)
-          (goto-char (point-max)))
+          (splitted nil))
+      (dolist (line (komorebi-web--content-lines))
+        (setq splitted (string-split line komorebi-web-cli-description-sep t "[ \t\n]*"))
         (push (komorebi-web--cli-option-create
-               (buffer-substring-no-properties (point-min) (point)))
-              options)
-        (delete-region (point-min) (point))
-        (komorebi-web--ensure-not-empty-line)
-        (setq cur-end-of-line (pos-eol))
-        (unless (eobp)
-          (forward-char 1)))
+               (car splitted) (cadr splitted))
+              options))
       (widen)
       (reverse (seq-filter 'identity options)))))
 
@@ -276,23 +284,19 @@
 (defun komorebi-web--cli-arguments-p ()
   "Return non-nil if the current buffer contain a list of options."
   (goto-char (point-min))
-  (search-forward "Arguments:" nil t))
+  (search-forward komorebi-web-cli-argument-value nil t))
 
-(defun komorebi-web--cli-argument-create (text)
-  "Return a plist for a CLI ARGUMENT from TEXT."
-  (unless (string-empty-p (string-trim text))
-    (with-temp-buffer
-      (insert (string-trim
-               (string-replace
-                "\\" "" (string-replace
-                         "\"" "'" (string-replace
-                                   "\\\"" "'" (string-replace
-                                               "\n" "" text))))))
-      (goto-char (point-min))
-      (re-search-forward komorebi-web-cli-argument-regex nil t)
-      (when (match-string 1)
-        (list :name (string-replace "_" "-" (downcase (string-trim (match-string 1))))
-              :description (komorebi-web--arg-description (match-string 2)))))))
+(defun komorebi-web--cli-argument-create (argument description)
+  "Return a plist for a CLI ARGUMENT from ARGUMENT and DESCRIPTION."
+  (unless (string-empty-p (string-trim argument))
+    (setq argument (string-trim
+                    (string-replace
+                     "\\" "" (string-replace
+                              "\"" "'" (string-replace
+                                        "\\\"" "'" (string-replace
+                                                    "\n" "" argument))))))
+    (list :name argument
+          :description (komorebi-web--description-get description))))
 
 (defun komorebi-web--cli-arguments-plist ()
   "Return plist with COMMAND ARGUMENTS from the komorebi website."
@@ -301,23 +305,18 @@
                         (goto-char (match-beginning 0))
                         (forward-line -1)
                         (point)))
-        (arguments nil))
+        (arguments nil)
+        (splitted nil))
     (when (komorebi-web--cli-arguments-p)
       (narrow-to-region (match-beginning 0) option-point)
       (goto-char (point-min))
-      (delete-line)
-      (komorebi-web--ensure-not-empty-line)
-      (goto-char (point-max))
-      (while (re-search-backward komorebi-web-cli-argument-regex nil t)
-        (goto-char (match-beginning 0))
+      (dolist (line (komorebi-web--content-lines))
+        (setq splitted (string-split line komorebi-web-cli-description-sep t "[ \t\n]*"))
         (push (komorebi-web--cli-argument-create
-               (buffer-substring-no-properties (point) (point-max)))
-              arguments)
-        (delete-region (point) (point-max))
-        (goto-char (point-max))))
-    (when (buffer-narrowed-p)
-      (widen))
-    arguments))
+               (car splitted) (cadr splitted))
+              arguments))
+      (widen)
+      (reverse (seq-filter 'identity arguments)))))
 
 
 (defun komorebi-web--cli-command-usage ()
@@ -356,8 +355,8 @@
                      :name (plist-get command :title)
                      :location (plist-get command :location)
                      :text (plist-get command :text)
-                     :arguments (komorebi-web--cli-arguments-plist)
                      :options (komorebi-web--cli-options-plist)
+                     :arguments (komorebi-web--cli-arguments-plist)
                      :usage (komorebi-web--cli-command-usage)
                      :description (komorebi-web--cli-command-description)))))
 

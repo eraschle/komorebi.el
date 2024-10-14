@@ -117,7 +117,8 @@ INDENT is the level of org-heading."
 
 (defun komorebi-api-command-help (command)
   "Return help of komorebi COMMAND."
-  (interactive "sCommand: ")
+  (interactive (list (completing-read "Command: " (seq-map (lambda (cmd) (oref cmd name))
+                                                           (komorebi-web-cli-commands)))))
   (let* ((help-message (komorebi-api--execute command "--help"))
          (cmd-buffer (get-buffer-create komorebi-api-help-buffer-name))
          (is-error (string-match "error" help-message))
@@ -139,7 +140,6 @@ INDENT is the level of org-heading."
 (defun komorebi-api--command-at-point ()
   "Return komorebi command at point."
   (let ((command (thing-at-point 'symbol t)))
-
     (when (null command)
       (user-error "No komorebi command found at point"))
     (string-remove-prefix "komorebi-api-" command)))
@@ -196,6 +196,7 @@ INDENT is the level of org-heading."
                  (oref command name)
                  (attribute-names command)))))
 
+
 (defun komorebi-api--commands ()
   "Return sorted list of komorebi API commands."
   (sort (komorebi-web-cli-commands)
@@ -214,7 +215,6 @@ INDENT is the level of org-heading."
                         (forward-line -1)
                         (point)))
     (delete-region (point-min) (point-max))
-    (komorebi-web--ensure-not-empty-line)
     (insert ";;;\n")
     (insert ";;; Generated functions\n")
     (dolist (command (komorebi-api--commands))
@@ -1367,6 +1367,6 @@ VALUE
 (provide 'komorebi-api)
 ;;; komorebi-api.el ends here
 
-;; Local Variables:
-;; jinx-local-words: "api behaviour"
-;; End:
+   ;; Local Variables:
+   ;; jinx-local-words: "Quicksave Rect Unstack api behaviour bsp prepended pwsh quicksaved quickstart retile retiling ultrawide unmanage unmanaged unstack whkdrc"
+   ;; End:
