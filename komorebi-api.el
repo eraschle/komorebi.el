@@ -117,7 +117,8 @@ INDENT is the level of org-heading."
 
 (defun komorebi-api-command-help (command)
   "Return help of komorebi COMMAND."
-  (interactive "sCommand: ")
+  (interactive (list (completing-read "Command: " (seq-map (lambda (cmd) (oref cmd name))
+                                                           (komorebi-web-cli-commands)))))
   (let* ((help-message (komorebi-api--execute command "--help"))
          (cmd-buffer (get-buffer-create komorebi-api-help-buffer-name))
          (is-error (string-match "error" help-message))
@@ -139,7 +140,6 @@ INDENT is the level of org-heading."
 (defun komorebi-api--command-at-point ()
   "Return komorebi command at point."
   (let ((command (thing-at-point 'symbol t)))
-
     (when (null command)
       (user-error "No komorebi command found at point"))
     (string-remove-prefix "komorebi-api-" command)))
