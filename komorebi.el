@@ -20,6 +20,7 @@
 ;;; Code:
 
 (require 'komorebi-api)
+(require 'komorebi-help)
 
 (defcustom komorebi-keymap-prefix "C-c C-i"
   "Prefix for Komorebi keymap."

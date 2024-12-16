@@ -37,11 +37,11 @@
   :group 'komorebi-web)
 
 
-(defun komorebi-web-search-replace (regex replaccement)
-  "Replace all occurrences of REGEX with REPLACCEMENT in the current buffer."
+(defun komorebi-web-search-replace (regex replacement)
+  "Replace all occurrences of REGEX with REPLACEMENT in the current buffer."
   (goto-char (point-min))
   (while (re-search-forward regex nil t)
-    (replace-match replaccement)))
+    (replace-match replacement)))
 
 
 (defun komorebi-web-load (url)
