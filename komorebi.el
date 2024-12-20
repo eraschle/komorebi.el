@@ -143,8 +143,8 @@ PREFIX is used to specify the type of direction."
         (t (komorebi--seleced-direction))))
 
 
-(defun komorebi-change-in (direction cycle-func operation-func)
-  "Cycle or move in DIRECTION with CYCLE-FUNC or OPERATION-FUNC."
+(defun komorebi-
+    "Cycle or move in DIRECTION with CYCLE-FUNC or OPERATION-FUNC."
   (if (komorebi--is-cycle-direction direction)
       (funcall cycle-func :cycle-direction direction)
     (funcall operation-func :operation-direction direction)))
@@ -377,8 +377,13 @@ PREFIX is used to specify the type of direction."
 (defun komorebi-is-started ()
   "Return non-nil if Komorebi-server is started.
 Determines if Komorebi is running is by checking if static configuration is set."
-  (interactive)
-  (komorebi-configuration))
+  (komorebi-api-configuration))
+
+
+(defcustom komorebi-start-argument (list :whkd nil :ahk t :bar t)
+  "Callback function to start Komorebi background process."
+  :type 'list
+  :group 'komorebi)
 
 
 (defcustom komorebi-configuration-files nil
@@ -387,45 +392,47 @@ Determines if Komorebi is running is by checking if static configuration is set.
   :group 'komorebi)
 
 
-(defun komorebi--select-config ()
-  "Return selected direction."
-  (unless (komorebi-is-started)
-    (error "Komorebi is not running"))
-  (unless komorebi-configuration-files
-    (push (komorebi-configuration) komorebi-configuration-files))
-  (if (length= komorebi-configuration-files 1)
-      (car komorebi-configuration-files)
-    (let* ((configs (seq-map (lambda (cfg) (string-remove-prefix (file-name-directory cfg) cfg))
-                             komorebi-configuration-files))
-           (answer (completing-read "Select Config: " configs)))
-      (seq-find (lambda (cfg) (string-suffix-p answer cfg))
-                komorebi-configuration-files))))
+(defun komorebi-read-config ()
+  "Return configuration file selected by the user."
+  (let* ((configs (seq-map
+                   (lambda (cfg) (file-name-base cfg))
+                   komorebi-configuration-files))
+         (answer (completing-read "Select configuration file: " configs)))
+    (seq-find (lambda (cfg)
+                (equal (file-name-base cfg) answer))
+              komorebi-configuration-files)))
 
+(defun komorebi-current-config ()
+  "Return current configuration file."
+  (cond ((komorebi-is-started)
+         (komorebi-configuration))
+        ((unless komorebi-configuration-files)
+         (error "No configuration files set"))
+        ((length= komorebi-configuration-files 1)
+         (seq-first komorebi-configuration-files))
+        (t (komorebi-read-config))))
 
-(defun komorebi--as-win-path (path)
-  "Return PATH as Windows path."
-  (if (string-prefix-p "/mnt/c/" path)
-      (concat "C:/" (string-remove-prefix "/mnt/c/" path))
-    path))
+;;;###autoload
+(cl-defun komorebi-start ()
+  "Start Komorebi background process with arguments in `komorebi-start-argument'."
+  (interactive)
+  (komorebi-api-start :config (format "--config %s" (string-trim (komorebi-current-config)))
+                      :ahk "--ahk" :bar "--bar"))
 
 
 ;;;###autoload
 (defun komorebi-replace-config (config)
   "Replace Komorebi static configuration with CONFIG."
-  (interactive (list (komorebi--select-config)))
+  (interactive (list (komorebi-current-config)))
   (unless (file-exists-p config)
     (error "Configuration file %s does not exist" config))
-  (if (equal (komorebi-configuration) config)
-      (message "Current loaded path is equal... Configuration nor reload.")
-    (komorebi-api-replace-configuration :path (komorebi--as-win-path config))))
+  (komorebi-api-replace-configuration :path (komorebi--as-win-path config)))
 
 
 ;;;###autoload
-(cl-defun komorebi-restart (&optional &key whkd ahk bar)
-  "Restart Komorebi with option WHKD, AHK and/or BAR.
-Only either WHKD or AHK can be set at a time."
-  (interactive (list :whkd nil :ahk t :bar t))
-  (komorebi-stop)
+(cl-defun komorebi-restart ()
+  "Restart Komorebi background process."
+  (komorebi-api-stop)
   (komorebi-start :whkd whkd :ahk ahk :bar bar))
 
 ;;
