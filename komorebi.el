@@ -39,12 +39,12 @@
 
 (defun komorebi-key-map-create ()
   "Define keymap for Komorebi."
-  (define-key komorebi-mode-map (komorebi--kdb "M") #'komorebi-manage)
-  (define-key komorebi-mode-map (komorebi--kdb "U") #'komorebi-unmanage)
-  (define-key komorebi-mode-map (komorebi--kdb "i") #'komorebi-minimize)
+  (define-key komorebi-mode-map (komorebi--kdb "M") #'komorebi-api-manage)
+  (define-key komorebi-mode-map (komorebi--kdb "U") #'komorebi-api-unmanage)
+  (define-key komorebi-mode-map (komorebi--kdb "i") #'komorebi-api-minimize)
   (define-key komorebi-mode-map (komorebi--kdb "b") #'komorebi-web-browse-cli-at-point)
-  (define-key komorebi-mode-map (komorebi--kdb "h") #'komorebi-api-command-help-at-point)
-  (define-key komorebi-mode-map (komorebi--kdb "H") #'komorebi-api-command-help)
+  (define-key komorebi-mode-map (komorebi--kdb "h") #'komorebi-help-command-at-point)
+  (define-key komorebi-mode-map (komorebi--kdb "H") #'komorebi-help-command)
   (define-key komorebi-mode-map (komorebi--kdb "F") #'komorebi-switch-focus)
   (define-key komorebi-mode-map (komorebi--kdb "M") #'komorebi-switch-move)
   (define-key komorebi-mode-map (komorebi--kdb "S") #'komorebi-switch-stack)
@@ -57,12 +57,11 @@
   (define-key komorebi-mode-map (komorebi--kdb "r v") #'komorebi-vertically-increase)
   (define-key komorebi-mode-map (komorebi--kdb "r V") #'komorebi-vertically-decrease)
   ;; Toggle
-  (define-key komorebi-mode-map (komorebi--kdb "t f") #'komorebi-toggle-float)
-  (define-key komorebi-mode-map (komorebi--kdb "t m") #'komorebi-toggle-monocle)
-  (define-key komorebi-mode-map (komorebi--kdb "t p") #'komorebi-toggle-pause)
-  (define-key komorebi-mode-map (komorebi--kdb "t t") #'komorebi-toggle-transparency)
-  (define-key komorebi-mode-map (komorebi--kdb "t x") #'komorebi-toggle-maximize)
-  (define-key komorebi-mode-map (komorebi--kdb "t f") #'komorebi-toggle-window-container-behaviour)
+  (define-key komorebi-mode-map (komorebi--kdb "t f") #'komorebi-api-toggle-float)
+  (define-key komorebi-mode-map (komorebi--kdb "t m") #'komorebi-api-toggle-monocle)
+  (define-key komorebi-mode-map (komorebi--kdb "t p") #'komorebi-api-toggle-pause)
+  (define-key komorebi-mode-map (komorebi--kdb "t t") #'komorebi-api-toggle-transparency)
+  (define-key komorebi-mode-map (komorebi--kdb "t x") #'komorebi-api-toggle-maximize)
   ;; Focus
   (define-key komorebi-mode-map (komorebi--kdb "f n") #'komorebi-focus-next)
   (define-key komorebi-mode-map (komorebi--kdb "f p") #'komorebi-focus-previous)
@@ -84,8 +83,8 @@
   (define-key komorebi-mode-map (komorebi--kdb "s l") #'komorebi-stack-right)
   (define-key komorebi-mode-map (komorebi--kdb "s j") #'komorebi-stack-down)
   (define-key komorebi-mode-map (komorebi--kdb "s k") #'komorebi-stack-up)
-  (define-key komorebi-mode-map (komorebi--kdb "s u") #'komorebi-unstack)
-  (define-key komorebi-mode-map (komorebi--kdb "s a") #'komorebi-stack-all)
+  (define-key komorebi-mode-map (komorebi--kdb "s u") #'komorebi-api-unstack)
+  (define-key komorebi-mode-map (komorebi--kdb "s a") #'komorebi-api-stack-all)
   ;; Workspace and Monitor
   (define-key komorebi-mode-map (komorebi--kdb "o w") #'komorebi-workspace-next)
   (define-key komorebi-mode-map (komorebi--kdb "o W") #'komorebi-workspace-previous)
@@ -143,7 +142,7 @@ PREFIX is used to specify the type of direction."
         (t (komorebi--seleced-direction))))
 
 
-(defun komorebi-change-in (direction cycle-func operation-func)
+(defun komorebi--change-in (direction cycle-func operation-func)
   "Cycle or move in DIRECTION with CYCLE-FUNC or OPERATION-FUNC."
   (if (komorebi--is-cycle-direction direction)
       (funcall cycle-func :cycle-direction direction)
@@ -152,6 +151,8 @@ PREFIX is used to specify the type of direction."
 
 ;;
 ;;; Layout
+
+
 ;;;###autoload
 (defun komorebi-flip-layout-horizontal ()
   "Flip layout horizontally."
@@ -164,17 +165,19 @@ PREFIX is used to specify the type of direction."
   (interactive)
   (komorebi-api-flip-layout :axis "vertical"))
 
+
 ;;
 ;;; Focus
+
 
 ;;;###autoload
 (cl-defun komorebi-switch-focus (&key direction)
   "Cycle through the focus to window in DIRECTION."
   (interactive "p")
   (let ((direction (komorebi--select-direction direction)))
-    (komorebi-change-in direction
-                        #'komorebi-api-cycle-focus
-                        #'komorebi-api-focus)))
+    (komorebi--change-in direction
+                         #'komorebi-api-cycle-focus
+                         #'komorebi-api-focus)))
 
 ;;;###autoload
 (defun komorebi-focus-next ()
@@ -221,9 +224,9 @@ PREFIX is used to specify the type of direction."
   "Move window in DIRECTION."
   (interactive "p")
   (let ((direction (komorebi--select-direction direction)))
-    (komorebi-change-in direction
-                        #'komorebi-api-cycle-move
-                        #'komorebi-api-move)))
+    (komorebi--change-in direction
+                         #'komorebi-api-cycle-move
+                         #'komorebi-api-move)))
 
 ;;;###autoload
 (defun komorebi-move-next ()
@@ -265,14 +268,15 @@ PREFIX is used to specify the type of direction."
 ;;
 ;;; Stack
 
+
 ;;;###autoload
 (cl-defun komorebi-switch-stack (&key direction)
   "Stack the window with an other(s) in DIRECTION."
   (interactive "p")
   (let ((direction (komorebi--select-direction direction)))
-    (komorebi-change-in direction
-                        #'komorebi-api-cycle-stack
-                        #'komorebi-api-stack)))
+    (komorebi--change-in direction
+                         #'komorebi-api-cycle-stack
+                         #'komorebi-api-stack)))
 
 ;;;###autoload
 (defun komorebi-stack-next ()
@@ -310,8 +314,10 @@ PREFIX is used to specify the type of direction."
   (interactive)
   (komorebi-switch-stack :direction "down"))
 
+
 ;;
 ;;; Workspace and Monitor
+
 
 ;;;###autoload
 (defun komorebi-workspace-next ()
@@ -339,6 +345,7 @@ PREFIX is used to specify the type of direction."
 
 ;;
 ;;; Resize
+
 
 ;;;###autoload
 (defun komorebi-horizontally-decrease ()
@@ -374,11 +381,10 @@ PREFIX is used to specify the type of direction."
 ;;
 ;;; Configuration
 
-(defun komorebi-is-started ()
-  "Return non-nil if Komorebi-server is started.
-Determines if Komorebi is running is by checking if static configuration is set."
-  (interactive)
-  (komorebi-configuration))
+(defcustom komorebi-start-argument (list :whkd nil :ahk t :bar t)
+  "Callback function to start Komorebi background process."
+  :type 'list
+  :group 'komorebi)
 
 
 (defcustom komorebi-configuration-files nil
@@ -386,47 +392,82 @@ Determines if Komorebi is running is by checking if static configuration is set.
   :type 'list
   :group 'komorebi)
 
+(defun komorebi--valid-config (file-path exclude-current)
+  "Return non-nil if FILE-PATH is a valid configuration file.
+If EXCLUDE-CURRENT is non-nil, exclude the config file
+of the current process."
+  (and (file-exists-p file-path)
+       (not (and exclude-current
+                 (equal file-path (komorebi--current-config-path))))))
 
-(defun komorebi--select-config ()
-  "Return selected direction."
-  (unless (komorebi-is-started)
-    (error "Komorebi is not running"))
-  (unless komorebi-configuration-files
-    (push (komorebi-configuration) komorebi-configuration-files))
-  (if (length= komorebi-configuration-files 1)
-      (car komorebi-configuration-files)
-    (let* ((configs (seq-map (lambda (cfg) (string-remove-prefix (file-name-directory cfg) cfg))
-                             komorebi-configuration-files))
-           (answer (completing-read "Select Config: " configs)))
-      (seq-find (lambda (cfg) (string-suffix-p answer cfg))
-                komorebi-configuration-files))))
+(defun komorebi--config-file (&optional exclude-current)
+  "Return list of configuration files for `komorebi-read-config'.
+If EXCLUDE-CURRENT is non-nil, the list does not include the config file
+of the current process."
+  (seq-map (lambda (cfg) (file-name-base cfg))
+           (seq-filter (lambda (cfg)
+                         (unless (file-exists-p cfg)
+                           (message "Komorebi: Not found %s" cfg))
+                         (komorebi--valid-config cfg exclude-current))
+                       komorebi-configuration-files)))
+
+(defun komorebi-read-config (&optional exclude-current)
+  "Return configuration file selected by the user.
+If EXCLUDE-CURRENT is non-nil, exclude the current configuration file."
+  (let ((answer (completing-read "Select configuration file: "
+                                 (komorebi--config-file exclude-current))))
+    (seq-find (lambda (cfg) (equal (file-name-base cfg) answer))
+              komorebi-configuration-files)))
 
 
-(defun komorebi--as-win-path (path)
-  "Return PATH as Windows path."
-  (if (string-prefix-p "/mnt/c/" path)
-      (concat "C:/" (string-remove-prefix "/mnt/c/" path))
-    path))
+(defun komorebi--current-config-path ()
+  "Return configuration file from the current komorebi process."
+  (string-replace "\\" "/" (string-trim (komorebi-api-configuration))))
+
+
+(defun komorebi-is-started ()
+  "Return non-nil if Komorebi-server is started.
+Determines if Komorebi is running is by checking if static configuration is set."
+  (komorebi-api-configuration))
+
+
+(defun komorebi-current-config ()
+  "Return current configuration file."
+  (cond ((komorebi-is-started)
+         (komorebi--current-config-path))
+        ((unless komorebi-configuration-files)
+         (error "No configuration files set"))
+        ((length= komorebi-configuration-files 1)
+         (seq-first komorebi-configuration-files))
+        (t (komorebi-read-config))))
+
+
+;;;###autoload
+(cl-defun komorebi-start ()
+  "Start Komorebi background process with arguments in `komorebi-start-argument'."
+  (interactive)
+  (let ((config (komorebi-current-config)))
+    (unless (file-exists-p config)
+      (error "Configuration file %s does not exist" config))
+    (komorebi-api-start :config (format "--config %s" config)
+                        :ahk "--ahk" :bar "--bar")))
 
 
 ;;;###autoload
 (defun komorebi-replace-config (config)
   "Replace Komorebi static configuration with CONFIG."
-  (interactive (list (komorebi--select-config)))
+  (interactive (list (komorebi-read-config
+                      (komorebi-is-started))))
   (unless (file-exists-p config)
     (error "Configuration file %s does not exist" config))
-  (if (equal (komorebi-configuration) config)
-      (message "Current loaded path is equal... Configuration nor reload.")
-    (komorebi-api-replace-configuration :path (komorebi--as-win-path config))))
+  (komorebi-api-replace-configuration :path config))
 
 
 ;;;###autoload
-(cl-defun komorebi-restart (&optional &key whkd ahk bar)
-  "Restart Komorebi with option WHKD, AHK and/or BAR.
-Only either WHKD or AHK can be set at a time."
-  (interactive (list :whkd nil :ahk t :bar t))
-  (komorebi-stop)
-  (komorebi-start :whkd whkd :ahk ahk :bar bar))
+(cl-defun komorebi-restart ()
+  "Restart Komorebi background process."
+  (komorebi-api-stop)
+  (komorebi-start))
 
 ;;
 ;;; Minor Mode
