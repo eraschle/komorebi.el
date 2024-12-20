@@ -25,11 +25,6 @@
 (require 'subr-x)
 (require 'org)
 
-(defcustom komorebi-help-version "v0.1.29"
-  "The version of komorebi."
-  :type 'string
-  :group 'komorebi-api)
-
 
 (defvar komorebi-help-buffer-name "*komorebi-help*"
   "The name of the buffer to display command help.")
@@ -105,6 +100,7 @@ INDENT is the level of org-heading."
             (t (insert (format "%s\n" line)))))))
 
 
+;;;###autoload
 (defun komorebi-help-command (command)
   "Return help of komorebi COMMAND."
   (interactive (list (completing-read "Command: " (seq-map (lambda (cmd) (oref cmd name))
@@ -135,6 +131,7 @@ INDENT is the level of org-heading."
     (string-remove-prefix "komorebi-help-" command)))
 
 
+;;;###autoload
 (defun komorebi-help-command-at-point ()
   "Return help of komorebi command at point."
   (interactive)
