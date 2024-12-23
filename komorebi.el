@@ -22,10 +22,12 @@
 (require 'komorebi-api)
 (require 'komorebi-help)
 
+
 (defcustom komorebi-keymap-prefix "C-c C-i"
   "Prefix for Komorebi keymap."
   :type 'string
   :group 'komorebi)
+
 
 (defun komorebi--kdb (&rest keys)
   "Return Emacs key representation of KEYS."
@@ -57,6 +59,9 @@
   (define-key komorebi-mode-map (komorebi--kdb "r v") #'komorebi-vertically-increase)
   (define-key komorebi-mode-map (komorebi--kdb "r V") #'komorebi-vertically-decrease)
   ;; Toggle
+  (define-key komorebi-mode-map (komorebi--kdb "t s") #'komorebi-start)
+  (define-key komorebi-mode-map (komorebi--kdb "t o") #'komorebi-stop)
+  (define-key komorebi-mode-map (komorebi--kdb "t r") #'komorebi-restart)
   (define-key komorebi-mode-map (komorebi--kdb "t f") #'komorebi-api-toggle-float)
   (define-key komorebi-mode-map (komorebi--kdb "t m") #'komorebi-api-toggle-monocle)
   (define-key komorebi-mode-map (komorebi--kdb "t p") #'komorebi-api-toggle-pause)
@@ -101,13 +106,16 @@
 (defvar komorebi-cycle-directions '("Next" "Previous")
   "Cycle directions for Komorebi.")
 
+
 (defun komorebi--is-cycle-direction (direction)
   "Return non-nil if DIRECTION is an operation direction."
   (seq-some (lambda (x) (string= (downcase x) direction))
             komorebi-cycle-directions))
 
+
 (defvar komorebi-operation-directions '("Up" "Down" "Left" "Right")
   "Operation directions for Komorebi.")
+
 
 (defun komorebi--is-operation-direction (direction)
   "Return non-nil if DIRECTION is an operation direction."
@@ -123,6 +131,7 @@ PREFIX is used to specify the type of direction."
              (append komorebi-operation-directions
                      komorebi-cycle-directions)
              nil 'require-match)))
+
 
 (defun komorebi--select-direction (prefix)
   "Return selected direction. Either operation or cycle direction.
@@ -150,13 +159,14 @@ PREFIX is used to specify the type of direction."
 (defun komorebi-flip-layout-horizontal ()
   "Flip layout horizontally."
   (interactive)
-  (komorebi-api-flip-layout :axis "horizontal"))
+  (komorebi-api-flip-layout "horizontal"))
+
 
 ;;;###autoload
 (defun komorebi-flip-layout-vertical ()
   "Flip layout vertically."
   (interactive)
-  (komorebi-api-flip-layout :axis "vertical"))
+  (komorebi-api-flip-layout "vertical"))
 
 
 ;;
@@ -164,7 +174,7 @@ PREFIX is used to specify the type of direction."
 
 
 ;;;###autoload
-(cl-defun komorebi-switch-focus (&key direction)
+(defun komorebi-switch-focus (direction)
   "Cycle through the focus to window in DIRECTION."
   (interactive "p")
   (let ((direction (komorebi--select-direction direction)))
@@ -176,37 +186,42 @@ PREFIX is used to specify the type of direction."
 (defun komorebi-focus-next ()
   "Focus next window."
   (interactive)
-  (komorebi-switch-focus :direction "next"))
+  (komorebi-switch-focus "next"))
+
 
 ;;;###autoload
 (defun komorebi-focus-previous ()
   "Focus previous window."
   (interactive)
-  (komorebi-switch-focus :direction "previous"))
+  (komorebi-switch-focus "previous"))
+
 
 ;;;###autoload
 (defun komorebi-focus-left ()
   "Focus window to the left."
   (interactive)
-  (komorebi-switch-focus :direction "left"))
+  (komorebi-switch-focus "left"))
+
 
 ;;;###autoload
 (defun komorebi-focus-right ()
   "Focus window to the right."
   (interactive)
-  (komorebi-switch-focus :direction "right"))
+  (komorebi-switch-focus "right"))
+
 
 ;;;###autoload
 (defun komorebi-focus-up ()
   "Focus window up."
   (interactive)
-  (komorebi-switch-focus :direction "up"))
+  (komorebi-switch-focus "up"))
+
 
 ;;;###autoload
 (defun komorebi-focus-down ()
   "Focus window down."
   (interactive)
-  (komorebi-switch-focus :direction "down"))
+  (komorebi-switch-focus "down"))
 
 
 ;;
@@ -216,11 +231,12 @@ PREFIX is used to specify the type of direction."
 (defun komorebi-change-in (direction cycle-func operation-func)
   "Cycle or move in DIRECTION with CYCLE-FUNC or OPERATION-FUNC."
   (if (komorebi--is-cycle-direction direction)
-      (funcall cycle-func :cycle-direction direction)
-    (funcall operation-func :operation-direction direction)))
+      (funcall cycle-func direction)
+    (funcall operation-func direction)))
+
 
 ;;;###autoload
-(defun komorebi-switch-move (&key direction)
+(defun komorebi-switch-move (direction)
   "Move window in DIRECTION."
   (interactive "p")
   (let ((direction (komorebi--select-direction direction)))
@@ -228,41 +244,47 @@ PREFIX is used to specify the type of direction."
                         #'komorebi-api-cycle-move
                         #'komorebi-api-move)))
 
+
 ;;;###autoload
 (defun komorebi-move-next ()
   "Move next window."
   (interactive)
-  (komorebi-switch-move :direction "next"))
+  (komorebi-switch-move "next"))
+
 
 ;;;###autoload
 (defun komorebi-move-previous ()
   "Move previous window."
   (interactive)
-  (komorebi-switch-move :direction "previous"))
+  (komorebi-switch-move "previous"))
+
 
 ;;;###autoload
 (defun komorebi-move-left ()
   "Move window to the left."
   (interactive)
-  (komorebi-switch-move :direction "left"))
+  (komorebi-switch-move "left"))
+
 
 ;;;###autoload
 (defun komorebi-move-right ()
   "Move window to the right."
   (interactive)
-  (komorebi-switch-move :direction "right"))
+  (komorebi-switch-move "right"))
+
 
 ;;;###autoload
 (defun komorebi-move-up ()
   "Move window up."
   (interactive)
-  (komorebi-switch-move :direction "up"))
+  (komorebi-switch-move "up"))
+
 
 ;;;###autoload
 (defun komorebi-move-down ()
   "Move window down."
   (interactive)
-  (komorebi-switch-move :direction "down"))
+  (komorebi-switch-move "down"))
 
 
 ;;
@@ -270,7 +292,7 @@ PREFIX is used to specify the type of direction."
 
 
 ;;;###autoload
-(cl-defun komorebi-switch-stack (&key direction)
+(defun komorebi-switch-stack (direction)
   "Stack the window with an other(s) in DIRECTION."
   (interactive "p")
   (let ((direction (komorebi--select-direction direction)))
@@ -278,41 +300,47 @@ PREFIX is used to specify the type of direction."
                         #'komorebi-api-cycle-stack
                         #'komorebi-api-stack)))
 
+
 ;;;###autoload
 (defun komorebi-stack-next ()
   "Stack next window."
   (interactive)
-  (komorebi-switch-stack :direction "next"))
+  (komorebi-switch-stack "next"))
+
 
 ;;;###autoload
 (defun komorebi-stack-previous ()
   "Stack previous window."
   (interactive)
-  (komorebi-switch-stack :direction "previous"))
+  (komorebi-switch-stack "previous"))
+
 
 ;;;###autoload
 (defun komorebi-stack-left ()
   "Stack window to the left."
   (interactive)
-  (komorebi-switch-stack :direction "left"))
+  (komorebi-switch-stack "left"))
+
 
 ;;;###autoload
 (defun komorebi-stack-right ()
   "Stack window to the right."
   (interactive)
-  (komorebi-switch-stack :direction "right"))
+  (komorebi-switch-stack "right"))
+
 
 ;;;###autoload
 (defun komorebi-stack-up ()
   "Stack window up."
   (interactive)
-  (komorebi-switch-stack :direction "up"))
+  (komorebi-switch-stack "up"))
+
 
 ;;;###autoload
 (defun komorebi-stack-down ()
   "Stack window down."
   (interactive)
-  (komorebi-switch-stack :direction "down"))
+  (komorebi-switch-stack "down"))
 
 
 ;;
@@ -323,25 +351,29 @@ PREFIX is used to specify the type of direction."
 (defun komorebi-workspace-next ()
   "Cycle to next workspace."
   (interactive)
-  (komorebi-api-cycle-workspace :cycle-direction "next"))
+  (komorebi-api-cycle-workspace "next"))
+
 
 ;;;###autoload
 (defun komorebi-workspace-previous ()
   "Cycle to previous workspace."
   (interactive)
-  (komorebi-api-cycle-workspace :cycle-direction "previous"))
+  (komorebi-api-cycle-workspace "previous"))
+
 
 ;;;###autoload
 (defun komorebi-monitor-next ()
   "Cycle to next monitor."
   (interactive)
-  (komorebi-api-cycle-monitor :cycle-direction "next"))
+  (komorebi-api-cycle-monitor "next"))
+
 
 ;;;###autoload
 (defun komorebi-monitor-previous ()
   "Cycle to previous monitor."
   (interactive)
-  (komorebi-api-cycle-monitor :cycle-direction "previous"))
+  (komorebi-api-cycle-monitor "previous"))
+
 
 ;;
 ;;; Resize
@@ -353,7 +385,8 @@ PREFIX is used to specify the type of direction."
   (interactive)
   (let ((prefix-no (if current-prefix-arg current-prefix-arg 1)))
     (cl-dotimes (_ prefix-no)
-      (komorebi-api-resize-axis :axis "horizontal" :sizing "decrease"))))
+      (komorebi-api-resize-axis "horizontal" "decrease"))))
+
 
 ;;;###autoload
 (defun komorebi-horizontally-increase ()
@@ -361,7 +394,8 @@ PREFIX is used to specify the type of direction."
   (interactive)
   (let ((prefix-no (if current-prefix-arg current-prefix-arg 1)))
     (cl-dotimes (_ prefix-no)
-      (komorebi-api-resize-axis :axis "horizontal" :sizing "increase"))))
+      (komorebi-api-resize-axis "horizontal" "increase"))))
+
 
 ;;;###autoload
 (defun komorebi-vertically-decrease ()
@@ -369,7 +403,8 @@ PREFIX is used to specify the type of direction."
   (interactive)
   (let ((prefix-no (if current-prefix-arg current-prefix-arg 1)))
     (cl-dotimes (_ prefix-no)
-      (komorebi-api-resize-axis :axis "vertical" :sizing "decrease"))))
+      (komorebi-api-resize-axis "vertical" "decrease"))))
+
 
 ;;;###autoload
 (defun komorebi-vertically-increase ()
@@ -377,14 +412,11 @@ PREFIX is used to specify the type of direction."
   (interactive)
   (let ((prefix-no (if current-prefix-arg current-prefix-arg 1)))
     (cl-dotimes (_ prefix-no)
-      (komorebi-api-resize-axis :axis "vertical" :sizing "increase"))))
+      (komorebi-api-resize-axis "vertical" "increase"))))
+
+
 ;;
 ;;; Configuration
-
-(defcustom komorebi-start-argument (list :whkd nil :ahk t :bar t)
-  "Callback function to start Komorebi background process."
-  :type 'list
-  :group 'komorebi)
 
 
 (defcustom komorebi-configuration-files nil
@@ -392,15 +424,17 @@ PREFIX is used to specify the type of direction."
   :type 'list
   :group 'komorebi)
 
+
 (defun komorebi--valid-config (file-path exclude-current)
   "Return non-nil if FILE-PATH is a valid configuration file.
 If EXCLUDE-CURRENT is non-nil, exclude the config file
 of the current process."
   (and (file-exists-p file-path)
        (not (and exclude-current
-                 (equal file-path (komorebi--current-config-path))))))
+                 (equal file-path (komorebi--current-config))))))
 
-(defun komorebi--config-file (&optional exclude-current)
+
+(defun komorebi--config-files (&optional exclude-current)
   "Return list of configuration files for `komorebi-read-config'.
 If EXCLUDE-CURRENT is non-nil, the list does not include the config file
 of the current process."
@@ -411,18 +445,19 @@ of the current process."
                          (komorebi--valid-config cfg exclude-current))
                        komorebi-configuration-files)))
 
+
 (defun komorebi-read-config (&optional exclude-current)
   "Return configuration file selected by the user.
 If EXCLUDE-CURRENT is non-nil, exclude the current configuration file."
   (let ((answer (completing-read "Select configuration file: "
-                                 (komorebi--config-file exclude-current))))
+                                 (komorebi--config-files exclude-current))))
     (seq-find (lambda (cfg) (equal (file-name-base cfg) answer))
               komorebi-configuration-files)))
 
 
-(defun komorebi--current-config-path ()
+(defun komorebi--current-config ()
   "Return configuration file from the current komorebi process."
-  (string-replace "\\" "/" (string-trim (komorebi-api-configuration))))
+  (string-trim (string-replace "\\" "/" (komorebi-api-configuration))))
 
 
 (defun komorebi-is-started ()
@@ -434,23 +469,12 @@ Determines if Komorebi is running is by checking if static configuration is set.
 (defun komorebi-current-config ()
   "Return current configuration file."
   (cond ((komorebi-is-started)
-         (komorebi--current-config-path))
-        ((unless komorebi-configuration-files)
-         (error "No configuration files set"))
+         (komorebi--current-config))
+        ((unless komorebi-configuration-files
+           (error "No configuration files set")))
         ((length= komorebi-configuration-files 1)
          (seq-first komorebi-configuration-files))
         (t (komorebi-read-config))))
-
-
-;;;###autoload
-(cl-defun komorebi-start ()
-  "Start Komorebi background process with arguments in `komorebi-start-argument'."
-  (interactive)
-  (let ((config (komorebi-current-config)))
-    (unless (file-exists-p config)
-      (error "Configuration file %s does not exist" config))
-    (komorebi-api-start :config (format "--config %s" config)
-                        :ahk "--ahk" :bar "--bar")))
 
 
 ;;;###autoload
@@ -460,17 +484,12 @@ Determines if Komorebi is running is by checking if static configuration is set.
                       (komorebi-is-started))))
   (unless (file-exists-p config)
     (error "Configuration file %s does not exist" config))
-  (komorebi-api-replace-configuration :path config))
+  (komorebi-api-replace-configuration config))
 
-
-;;;###autoload
-(cl-defun komorebi-restart ()
-  "Restart Komorebi background process."
-  (komorebi-api-stop)
-  (komorebi-start))
 
 ;;
 ;;; Minor Mode
+
 
 ;;;###autoload
 (define-minor-mode komorebi-mode
@@ -484,11 +503,13 @@ Determines if Komorebi is running is by checking if static configuration is set.
 
 (defun komorebi-turn-on ()
   "Toggle Komorebi mode."
+  (interactive)
   (komorebi-mode 1))
 
 
 (defun komorebi-turn-off ()
   "Toggle Komorebi mode."
+  (interactive)
   (komorebi-mode -1))
 
 
