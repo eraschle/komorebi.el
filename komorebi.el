@@ -59,9 +59,6 @@
   (define-key komorebi-mode-map (komorebi--kdb "r v") #'komorebi-vertically-increase)
   (define-key komorebi-mode-map (komorebi--kdb "r V") #'komorebi-vertically-decrease)
   ;; Toggle
-  (define-key komorebi-mode-map (komorebi--kdb "t s") #'komorebi-start)
-  (define-key komorebi-mode-map (komorebi--kdb "t o") #'komorebi-stop)
-  (define-key komorebi-mode-map (komorebi--kdb "t r") #'komorebi-restart)
   (define-key komorebi-mode-map (komorebi--kdb "t f") #'komorebi-api-toggle-float)
   (define-key komorebi-mode-map (komorebi--kdb "t m") #'komorebi-api-toggle-monocle)
   (define-key komorebi-mode-map (komorebi--kdb "t p") #'komorebi-api-toggle-pause)
