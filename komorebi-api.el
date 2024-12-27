@@ -5,7 +5,7 @@
 ;; Author: Erich Raschle <erichraschle@gmail.com>
 ;; Maintainer: Erich Raschle <erichraschle@gmail.com>
 ;; Created: Oktober 07, 2024
-;; Modified: December 24, 2024
+;; Modified: December 27, 2024
 ;; Version: 0.0.2
 ;; Keywords: docs emulations extensions help languages lisp local processes
 ;; Homepage: https://github.com/eraschle/pyKomorebi
@@ -28,26 +28,118 @@
   :group 'komorebi-api)
 
 
-(defun komorebi-api--args-get (args)
+(defun komorebi-api---args-get (args)
   "Return string of ARGS."
   (string-join
-    (seq-filter (lambda (arg) (not (or (null arg) (string-empty-p arg)))) args)
-    " "))
+   (seq-filter (lambda (arg) (not (or (null arg) (string-empty-p arg)))) args)
+   " "))
 
 
 (defun komorebi-api-execute (command &rest args)
   "Execute komorebi COMMAND with ARGS in shell."
   (let ((shell-cmd (format "%s %s %s"
-          (shell-quote-argument komorebi-api-executable)
-          command
-          (komorebi-api--args-get args))))
-  (let ((result (shell-command-to-string shell-cmd)))
-    (message "Result %S of Command: %S" shell-cmd result)
-  result)))
+                           (shell-quote-argument komorebi-api-executable)
+                           command
+                           (komorebi-api---args-get args))))
+    (let ((result (shell-command-to-string shell-cmd)))
+      (if (string-empty-p result)
+          (message "Command: %S executed" command)
+        (message "Command %s executed with Result %s" command result))
+      result)))
 
 
 ;;
 ;;; Generated CLI Commands
+(defvar komorebi-api-animation-type (list "movement" "transparency")
+  "List of possible values for \\='animation-type\\='.")
+
+(defvar komorebi-api-axis (list "horizontal"
+                                "vertical"
+                                "horizontal-and-vertical")
+  "List of possible values for \\='axis\\='.")
+
+(defvar komorebi-api-cycle-direction (list "previous" "next")
+  "List of possible values for \\='cycle-direction\\='.")
+
+(defvar komorebi-api-default-layout (list "bsp"
+                                          "columns"
+                                          "rows"
+                                          "vertical-stack"
+                                          "horizontal-stack"
+                                          "ultrawide-vertical-stack"
+                                          "grid"
+                                          "right-main-vertical-stack")
+  "List of possible values for \\='default-layout\\='.")
+
+(defvar komorebi-api-identifier (list "exe" "class" "title" "path")
+  "List of possible values for \\='identifier\\='.")
+
+(defvar komorebi-api-move-behaviour (list "swap" "insert" "no-op")
+  "List of possible values for \\='move-behaviour\\='.")
+
+(defvar komorebi-api-operation-behaviour (list "op" "no-op")
+  "List of possible values for \\='operation-behaviour\\='.")
+
+(defvar komorebi-api-operation-direction (list "left" "right" "up" "down")
+  "List of possible values for \\='operation-direction\\='.")
+
+(defvar komorebi-api-sizing (list "increase" "decrease")
+  "List of possible values for \\='sizing\\='.")
+
+(defvar komorebi-api-state-query (list "focused-monitor-index"
+                                       "focused-workspace-index"
+                                       "focused-container-index"
+                                       "focused-window-index")
+  "List of possible values for \\='state-query\\='.")
+
+(defvar komorebi-api-style-animation (list "linear"
+                                           "ease-in-sine"
+                                           "ease-out-sine"
+                                           "ease-in-out-sine"
+                                           "ease-in-quad"
+                                           "ease-out-quad"
+                                           "ease-in-out-quad"
+                                           "ease-in-cubic"
+                                           "ease-in-out-cubic"
+                                           "ease-in-quart"
+                                           "ease-out-quart"
+                                           "ease-in-out-quart"
+                                           "ease-in-quint"
+                                           "ease-out-quint"
+                                           "ease-in-out-quint"
+                                           "ease-in-expo"
+                                           "ease-out-expo"
+                                           "ease-in-out-expo"
+                                           "ease-in-circ"
+                                           "ease-out-circ"
+                                           "ease-in-out-circ"
+                                           "ease-in-back"
+                                           "ease-out-back"
+                                           "ease-in-out-back"
+                                           "ease-in-elastic"
+                                           "ease-out-elastic"
+                                           "ease-in-out-elastic"
+                                           "ease-in-bounce"
+                                           "ease-out-bounce"
+                                           "ease-in-out-bounce")
+  "List of possible values for \\='style-animation\\='.")
+
+(defvar komorebi-api-style-border (list "system" "rounded" "square")
+  "List of possible values for \\='style-border\\='.")
+
+(defvar komorebi-api-style-mouse-follows (list "komorebi" "windows")
+  "List of possible values for \\='style-mouse-follows\\='.")
+
+(defvar komorebi-api-value (list "enable" "disable")
+  "List of possible values for \\='value\\='.")
+
+(defvar komorebi-api-window-kind (list "single"
+                                       "stack"
+                                       "monocle"
+                                       "unfocused"
+                                       "floating")
+  "List of possible values for \\='window-kind\\='.")
+
 
 
 ;;;###autoload
@@ -60,14 +152,17 @@
 (defun komorebi-api-start (&optional config await-configuration tcp-port whkd ahk bar masir clean-state)
   "Start komorebi.exe as a background process.
 CONFIG:              Path to a static configuration JSON file.
-AWAIT-CONFIGURATION:
+AWAIT-CONFIGURATION: Wait for 'komorebic complete-configuration' to be sent
+                     before processing events.
 TCP-PORT:            Start a TCP server on the given port to allow the direct
-                     sending of SocketMessages
-WHKD:               
-AHK:                
-BAR:                
+                     sending of SocketMessages.
+WHKD:                Start whkd in a background process.
+AHK:                 Start autohotkey configuration file.
+BAR:                 Start komorebi-bar in a background process.
 MASIR:              
-CLEAN-STATE:        "
+                     Start masir in a background process for focus-follows-mouse.
+CLEAN-STATE:         Do not attempt to auto-apply a dumped state temp file from
+                     a previously running instance of komorebi."
   (when config
     (setq config (format "--config %s" config)))
   (when await-configuration
@@ -89,10 +184,10 @@ CLEAN-STATE:        "
 
 (defun komorebi-api-stop (&optional whkd ahk bar masir)
   "Stop the komorebi.exe process and restore all hidden windows.
-WHKD: 
-AHK:  
-BAR:  
-MASIR:"
+WHKD:  Stop whkd if it is running as a background process.
+AHK:   Stop ahk if it is running as a background process.
+BAR:   Stop komorebi-bar if it is running as a background process.
+MASIR: Stop masir if it is running as a background process."
   (when whkd
     (setq whkd "--whkd"))
   (when ahk
@@ -106,10 +201,10 @@ MASIR:"
 
 (defun komorebi-api-kill (&optional whkd ahk bar masir)
   "Kill background processes started by komorebic.
-WHKD: 
-AHK:  
-BAR:  
-MASIR:"
+WHKD:  Kill whkd if it is running as a background process.
+AHK:   Kill ahk if it is running as a background process.
+BAR:   Kill komorebi-bar if it is running as a background process.
+MASIR: Kill masir if it is running as a background process."
   (when whkd
     (setq whkd "--whkd"))
   (when ahk
@@ -184,15 +279,15 @@ MASIR:"
   (komorebi-api-execute "monitor-information"))
 
 
+;;;###autoload
 (defun komorebi-api-query (state-query)
   "Query the current window manager state.
 STATE-QUERY: Possible values:
              focused-monitor-index, focused-workspace-index,
              focused-container-index, focused-window-index"
-  (unless (member state-query (list "focused-monitor-index"
-                                    "focused-workspace-index"
-                                    "focused-container-index"
-                                    "focused-window-index"))
+  (interactive (list (completing-read "Enter value for <STATE_QUERY>: "
+                                      komorebi-api-state-query nil t nil)))
+  (unless (member state-query komorebi-api-state-query)
     (error "Invalid value for 'state-query' %S" state-query))
   (komorebi-api-execute "query" state-query))
 
@@ -211,15 +306,13 @@ SOCKET: Name of the socket to stop sending event notifications to."
 
 (defun komorebi-api-subscribe-pipe (named-pipe)
   "Subscribe to komorebi events using a Named Pipe.
-NAMED-PIPE: Name of the pipe to send event notifications to Options:
-            -h, --help  Print help"
+NAMED-PIPE: Name of the pipe to send event notifications to."
   (komorebi-api-execute "subscribe-pipe" named-pipe))
 
 
 (defun komorebi-api-unsubscribe-pipe (named-pipe)
   "Unsubscribe from komorebi events.
-NAMED-PIPE: Name of the pipe to stop sending event notifications to Options:
-            -h, --help  Print help"
+NAMED-PIPE: Name of the pipe to stop sending event notifications to."
   (komorebi-api-execute "unsubscribe-pipe" named-pipe))
 
 
@@ -256,20 +349,28 @@ PATH: File from which the resize layout dimensions should be loaded."
   (komorebi-api-execute "load-resize" path))
 
 
+;;;###autoload
 (defun komorebi-api-focus (operation-direction)
   "Change focus to the window in the specified direction.
 OPERATION-DIRECTION: Possible values:
                      left, right, up, down"
-  (unless (member operation-direction (list "left" "right" "up" "down"))
+  (interactive (list (completing-read "Enter value for <OPERATION_DIRECTION>: "
+                                      komorebi-api-operation-direction
+                                      nil t nil)))
+  (unless (member operation-direction komorebi-api-operation-direction)
     (error "Invalid value for 'operation-direction' %S" operation-direction))
   (komorebi-api-execute "focus" operation-direction))
 
 
+;;;###autoload
 (defun komorebi-api-move (operation-direction)
   "Move the focused window in the specified direction.
 OPERATION-DIRECTION: Possible values:
                      left, right, up, down"
-  (unless (member operation-direction (list "left" "right" "up" "down"))
+  (interactive (list (completing-read "Enter value for <OPERATION_DIRECTION>: "
+                                      komorebi-api-operation-direction
+                                      nil t nil)))
+  (unless (member operation-direction komorebi-api-operation-direction)
     (error "Invalid value for 'operation-direction' %S" operation-direction))
   (komorebi-api-execute "move" operation-direction))
 
@@ -295,29 +396,37 @@ OPERATION-DIRECTION: Possible values:
   (komorebi-api-execute "force-focus"))
 
 
+;;;###autoload
 (defun komorebi-api-cycle-focus (cycle-direction)
   "Change focus to the window in the specified cycle direction.
-CYCLE-DIRECTION: Possible values:
-                 previous, next"
-  (unless (member cycle-direction (list "previous" "next"))
+CYCLE-DIRECTION: Possible values: previous, next"
+  (interactive (list (completing-read "Enter value for <CYCLE_DIRECTION>: "
+                                      komorebi-api-cycle-direction nil t nil)))
+  (unless (member cycle-direction komorebi-api-cycle-direction)
     (error "Invalid value for 'cycle-direction' %S" cycle-direction))
   (komorebi-api-execute "cycle-focus" cycle-direction))
 
 
+;;;###autoload
 (defun komorebi-api-cycle-move (cycle-direction)
   "Move the focused window in the specified cycle direction.
-CYCLE-DIRECTION: Possible values:
-                 previous, next"
-  (unless (member cycle-direction (list "previous" "next"))
+CYCLE-DIRECTION: Possible values: previous, next"
+  (interactive (list (completing-read "Enter value for <CYCLE_DIRECTION>: "
+                                      komorebi-api-cycle-direction nil t nil)))
+  (unless (member cycle-direction komorebi-api-cycle-direction)
     (error "Invalid value for 'cycle-direction' %S" cycle-direction))
   (komorebi-api-execute "cycle-move" cycle-direction))
 
 
+;;;###autoload
 (defun komorebi-api-stack (operation-direction)
   "Stack the focused window in the specified direction.
 OPERATION-DIRECTION: Possible values:
                      left, right, up, down"
-  (unless (member operation-direction (list "left" "right" "up" "down"))
+  (interactive (list (completing-read "Enter value for <OPERATION_DIRECTION>: "
+                                      komorebi-api-operation-direction
+                                      nil t nil)))
+  (unless (member operation-direction komorebi-api-operation-direction)
     (error "Invalid value for 'operation-direction' %S" operation-direction))
   (komorebi-api-execute "stack" operation-direction))
 
@@ -329,21 +438,25 @@ OPERATION-DIRECTION: Possible values:
   (komorebi-api-execute "unstack"))
 
 
+;;;###autoload
 (defun komorebi-api-cycle-stack (cycle-direction)
   "Cycle the focused stack in the specified cycle direction.
-CYCLE-DIRECTION: Possible values:
-                 previous, next"
-  (unless (member cycle-direction (list "previous" "next"))
+CYCLE-DIRECTION: Possible values: previous, next"
+  (interactive (list (completing-read "Enter value for <CYCLE_DIRECTION>: "
+                                      komorebi-api-cycle-direction nil t nil)))
+  (unless (member cycle-direction komorebi-api-cycle-direction)
     (error "Invalid value for 'cycle-direction' %S" cycle-direction))
   (komorebi-api-execute "cycle-stack" cycle-direction))
 
 
+;;;###autoload
 (defun komorebi-api-cycle-stack-index (cycle-direction)
   "Cycle the index of the focused window in the focused stack in the specified
-cycle direction
-CYCLE-DIRECTION: Possible values:
-                 previous, next"
-  (unless (member cycle-direction (list "previous" "next"))
+ cycle direction
+CYCLE-DIRECTION: Possible values: previous, next"
+  (interactive (list (completing-read "Enter value for <CYCLE_DIRECTION>: "
+                                      komorebi-api-cycle-direction nil t nil)))
+  (unless (member cycle-direction komorebi-api-cycle-direction)
     (error "Invalid value for 'cycle-direction' %S" cycle-direction))
   (komorebi-api-execute "cycle-stack-index" cycle-direction))
 
@@ -368,28 +481,35 @@ TARGET: Target index (zero-indexed)."
   (komorebi-api-execute "unstack-all"))
 
 
+;;;###autoload
 (defun komorebi-api-resize-edge (edge sizing)
   "Resize the focused window in the specified direction.
-EDGE:   Possible values:
-        left, right, up, down
-SIZING: Possible values:
-        increase, decrease"
-  (unless (member edge (list "left" "right" "up" "down"))
+EDGE:   Possible values: left, right, up, down
+SIZING: Possible values: increase, decrease"
+  (interactive (list (completing-read "Enter value for <EDGE>: "
+                                      komorebi-api-operation-direction
+                                      nil t nil)
+                     (completing-read "Enter value for <SIZING>: "
+                                      komorebi-api-sizing nil t nil)))
+  (unless (member edge komorebi-api-operation-direction)
     (error "Invalid value for 'edge' %S" edge))
-  (unless (member sizing (list "increase" "decrease"))
+  (unless (member sizing komorebi-api-sizing)
     (error "Invalid value for 'sizing' %S" sizing))
   (komorebi-api-execute "resize-edge" edge sizing))
 
 
+;;;###autoload
 (defun komorebi-api-resize-axis (axis sizing)
   "Resize the focused window or primary column along the specified axis.
-AXIS:   Possible values:
-        horizontal, vertical, horizontal-and-vertical
-SIZING: Possible values:
-        increase, decrease"
-  (unless (member axis (list "horizontal" "vertical" "horizontal-and-vertical"))
+AXIS:   Possible values: horizontal, vertical, horizontal-and-vertical
+SIZING: Possible values: increase, decrease"
+  (interactive (list (completing-read "Enter value for <AXIS>: "
+                                      komorebi-api-axis nil t nil)
+                     (completing-read "Enter value for <SIZING>: "
+                                      komorebi-api-sizing nil t nil)))
+  (unless (member axis komorebi-api-axis)
     (error "Invalid value for 'axis' %S" axis))
-  (unless (member sizing (list "increase" "decrease"))
+  (unless (member sizing komorebi-api-sizing)
     (error "Invalid value for 'sizing' %S" sizing))
   (komorebi-api-execute "resize-axis" axis sizing))
 
@@ -400,11 +520,13 @@ TARGET: Target index (zero-indexed)."
   (komorebi-api-execute "move-to-monitor" target))
 
 
+;;;###autoload
 (defun komorebi-api-cycle-move-to-monitor (cycle-direction)
   "Move the focused window to the monitor in the given cycle direction.
-CYCLE-DIRECTION: Possible values:
-                 previous, next"
-  (unless (member cycle-direction (list "previous" "next"))
+CYCLE-DIRECTION: Possible values: previous, next"
+  (interactive (list (completing-read "Enter value for <CYCLE_DIRECTION>: "
+                                      komorebi-api-cycle-direction nil t nil)))
+  (unless (member cycle-direction komorebi-api-cycle-direction)
     (error "Invalid value for 'cycle-direction' %S" cycle-direction))
   (komorebi-api-execute "cycle-move-to-monitor" cycle-direction))
 
@@ -421,11 +543,13 @@ WORKSPACE: Target workspace name."
   (komorebi-api-execute "move-to-named-workspace" workspace))
 
 
+;;;###autoload
 (defun komorebi-api-cycle-move-to-workspace (cycle-direction)
   "Move the focused window to the workspace in the given cycle direction.
-CYCLE-DIRECTION: Possible values:
-                 previous, next"
-  (unless (member cycle-direction (list "previous" "next"))
+CYCLE-DIRECTION: Possible values: previous, next"
+  (interactive (list (completing-read "Enter value for <CYCLE_DIRECTION>: "
+                                      komorebi-api-cycle-direction nil t nil)))
+  (unless (member cycle-direction komorebi-api-cycle-direction)
     (error "Invalid value for 'cycle-direction' %S" cycle-direction))
   (komorebi-api-execute "cycle-move-to-workspace" cycle-direction))
 
@@ -436,11 +560,13 @@ TARGET: Target index (zero-indexed)."
   (komorebi-api-execute "send-to-monitor" target))
 
 
+;;;###autoload
 (defun komorebi-api-cycle-send-to-monitor (cycle-direction)
   "Send the focused window to the monitor in the given cycle direction.
-CYCLE-DIRECTION: Possible values:
-                 previous, next"
-  (unless (member cycle-direction (list "previous" "next"))
+CYCLE-DIRECTION: Possible values: previous, next"
+  (interactive (list (completing-read "Enter value for <CYCLE_DIRECTION>: "
+                                      komorebi-api-cycle-direction nil t nil)))
+  (unless (member cycle-direction komorebi-api-cycle-direction)
     (error "Invalid value for 'cycle-direction' %S" cycle-direction))
   (komorebi-api-execute "cycle-send-to-monitor" cycle-direction))
 
@@ -457,11 +583,13 @@ WORKSPACE: Target workspace name."
   (komorebi-api-execute "send-to-named-workspace" workspace))
 
 
+;;;###autoload
 (defun komorebi-api-cycle-send-to-workspace (cycle-direction)
   "Send the focused window to the workspace in the given cycle direction.
-CYCLE-DIRECTION: Possible values:
-                 previous, next"
-  (unless (member cycle-direction (list "previous" "next"))
+CYCLE-DIRECTION: Possible values: previous, next"
+  (interactive (list (completing-read "Enter value for <CYCLE_DIRECTION>: "
+                                      komorebi-api-cycle-direction nil t nil)))
+  (unless (member cycle-direction komorebi-api-cycle-direction)
     (error "Invalid value for 'cycle-direction' %S" cycle-direction))
   (komorebi-api-execute "cycle-send-to-workspace" cycle-direction))
 
@@ -525,20 +653,24 @@ WORKSPACE: Target workspace name."
   (komorebi-api-execute "close-workspace"))
 
 
+;;;###autoload
 (defun komorebi-api-cycle-monitor (cycle-direction)
   "Focus the monitor in the given cycle direction.
-CYCLE-DIRECTION: Possible values:
-                 previous, next"
-  (unless (member cycle-direction (list "previous" "next"))
+CYCLE-DIRECTION: Possible values: previous, next"
+  (interactive (list (completing-read "Enter value for <CYCLE_DIRECTION>: "
+                                      komorebi-api-cycle-direction nil t nil)))
+  (unless (member cycle-direction komorebi-api-cycle-direction)
     (error "Invalid value for 'cycle-direction' %S" cycle-direction))
   (komorebi-api-execute "cycle-monitor" cycle-direction))
 
 
+;;;###autoload
 (defun komorebi-api-cycle-workspace (cycle-direction)
   "Focus the workspace in the given cycle direction.
-CYCLE-DIRECTION: Possible values:
-                 previous, next"
-  (unless (member cycle-direction (list "previous" "next"))
+CYCLE-DIRECTION: Possible values: previous, next"
+  (interactive (list (completing-read "Enter value for <CYCLE_DIRECTION>: "
+                                      komorebi-api-cycle-direction nil t nil)))
+  (unless (member cycle-direction komorebi-api-cycle-direction)
     (error "Invalid value for 'cycle-direction' %S" cycle-direction))
   (komorebi-api-execute "cycle-workspace" cycle-direction))
 
@@ -549,11 +681,13 @@ TARGET: Target index (zero-indexed)."
   (komorebi-api-execute "move-workspace-to-monitor" target))
 
 
+;;;###autoload
 (defun komorebi-api-cycle-move-workspace-to-monitor (cycle-direction)
   "Move the focused workspace monitor in the given cycle direction.
-CYCLE-DIRECTION: Possible values:
-                 previous, next"
-  (unless (member cycle-direction (list "previous" "next"))
+CYCLE-DIRECTION: Possible values: previous, next"
+  (interactive (list (completing-read "Enter value for <CYCLE_DIRECTION>: "
+                                      komorebi-api-cycle-direction nil t nil)))
+  (unless (member cycle-direction komorebi-api-cycle-direction)
     (error "Invalid value for 'cycle-direction' %S" cycle-direction))
   (komorebi-api-execute "cycle-move-workspace-to-monitor" cycle-direction))
 
@@ -574,7 +708,7 @@ TARGET: Target index (zero-indexed)."
 (defun komorebi-api-resize-delta (pixels)
   "Set the resize delta (used by resize-edge and resize-axis).
 PIXELS: The delta of pixels by which to increase or decrease window dimensions
-        when resizing"
+        when resizing."
   (komorebi-api-execute "resize-delta" pixels))
 
 
@@ -590,9 +724,9 @@ BOTTOM: Size of the bottom invisible border (usually the same as left)."
 (defun komorebi-api-global-work-area-offset (left top right bottom)
   "Set offsets to exclude parts of the work area from tiling.
 LEFT:   Size of the left work area offset (set right to left * 2 to maintain
-        right padding)
+        right padding).
 TOP:    Size of the top work area offset (set bottom to the same value to
-        maintain bottom padding)
+        maintain bottom padding).
 RIGHT:  Size of the right work area offset.
 BOTTOM: Size of the bottom work area offset."
   (komorebi-api-execute "global-work-area-offset" left top right bottom))
@@ -602,9 +736,9 @@ BOTTOM: Size of the bottom work area offset."
   "Set offsets for a monitor to exclude parts of the work area from tiling.
 MONITOR: Monitor index (zero-indexed).
 LEFT:    Size of the left work area offset (set right to left * 2 to maintain
-         right padding)
+         right padding).
 TOP:     Size of the top work area offset (set bottom to the same value to
-         maintain bottom padding)
+         maintain bottom padding).
 RIGHT:   Size of the right work area offset.
 BOTTOM:  Size of the bottom work area offset."
   (komorebi-api-execute "monitor-work-area-offset" monitor left top right bottom))
@@ -624,55 +758,53 @@ SIZE: Pixels size to set as an integer."
 
 (defun komorebi-api-adjust-container-padding (sizing adjustment)
   "Adjust container padding on the focused workspace.
-SIZING:     Possible values:
-            increase, decrease
+SIZING:     Possible values: increase, decrease
 ADJUSTMENT: Pixels to adjust by as an integer."
-  (unless (member sizing (list "increase" "decrease"))
+  (unless (member sizing komorebi-api-sizing)
     (error "Invalid value for 'sizing' %S" sizing))
   (komorebi-api-execute "adjust-container-padding" sizing adjustment))
 
 
 (defun komorebi-api-adjust-workspace-padding (sizing adjustment)
   "Adjust workspace padding on the focused workspace.
-SIZING:     Possible values:
-            increase, decrease
+SIZING:     Possible values: increase, decrease
 ADJUSTMENT: Pixels to adjust by as an integer."
-  (unless (member sizing (list "increase" "decrease"))
+  (unless (member sizing komorebi-api-sizing)
     (error "Invalid value for 'sizing' %S" sizing))
   (komorebi-api-execute "adjust-workspace-padding" sizing adjustment))
 
 
+;;;###autoload
 (defun komorebi-api-change-layout (default-layout)
   "Set the layout on the focused workspace.
 DEFAULT-LAYOUT: Possible values:
                 bsp, columns, rows, vertical-stack, horizontal-stack,
                 ultrawide-vertical-stack, grid, right-main-vertical-stack"
-  (unless (member default-layout (list "bsp"
-                                       "columns"
-                                       "rows"
-                                       "vertical-stack"
-                                       "horizontal-stack"
-                                       "ultrawide-vertical-stack"
-                                       "grid"
-                                       "right-main-vertical-stack"))
+  (interactive (list (completing-read "Enter value for <DEFAULT_LAYOUT>: "
+                                      komorebi-api-default-layout nil t nil)))
+  (unless (member default-layout komorebi-api-default-layout)
     (error "Invalid value for 'default-layout' %S" default-layout))
   (komorebi-api-execute "change-layout" default-layout))
 
 
+;;;###autoload
 (defun komorebi-api-cycle-layout (cycle-direction)
   "Cycle between available layouts.
-CYCLE-DIRECTION: Possible values:
-                 previous, next"
-  (unless (member cycle-direction (list "previous" "next"))
+CYCLE-DIRECTION: Possible values: previous, next"
+  (interactive (list (completing-read "Enter value for <CYCLE_DIRECTION>: "
+                                      komorebi-api-cycle-direction nil t nil)))
+  (unless (member cycle-direction komorebi-api-cycle-direction)
     (error "Invalid value for 'cycle-direction' %S" cycle-direction))
   (komorebi-api-execute "cycle-layout" cycle-direction))
 
 
+;;;###autoload
 (defun komorebi-api-flip-layout (axis)
   "Flip the layout on the focused workspace (BSP only).
-AXIS: Possible values:
-      horizontal, vertical, horizontal-and-vertical"
-  (unless (member axis (list "horizontal" "vertical" "horizontal-and-vertical"))
+AXIS: Possible values: horizontal, vertical, horizontal-and-vertical"
+  (interactive (list (completing-read "Enter value for <AXIS>: "
+                                      komorebi-api-axis nil t nil)))
+  (unless (member axis komorebi-api-axis)
     (error "Invalid value for 'axis' %S" axis))
   (komorebi-api-execute "flip-layout" axis))
 
@@ -691,11 +823,15 @@ AXIS: Possible values:
   (komorebi-api-execute "promote-focus"))
 
 
+;;;###autoload
 (defun komorebi-api-promote-window (operation-direction)
   "Promote the window in the specified direction.
 OPERATION-DIRECTION: Possible values:
                      left, right, up, down"
-  (unless (member operation-direction (list "left" "right" "up" "down"))
+  (interactive (list (completing-read "Enter value for <OPERATION_DIRECTION>: "
+                                      komorebi-api-operation-direction
+                                      nil t nil)))
+  (unless (member operation-direction komorebi-api-operation-direction)
     (error "Invalid value for 'operation-direction' %S" operation-direction))
   (komorebi-api-execute "promote-window" operation-direction))
 
@@ -718,7 +854,8 @@ BOTTOM:           Bottom value of the monitor's size Rect."
 
 
 (defun komorebi-api-display-index-preference (index-preference display)
-  "Set the display index preference for a monitor identified using its display name
+  "Set the display index preference for a monitor identified using its display
+ name
 INDEX-PREFERENCE: Preferred monitor index (zero-indexed).
 DISPLAY:          Display name as identified in komorebic state."
   (komorebi-api-execute "display-index-preference" index-preference display))
@@ -775,14 +912,7 @@ WORKSPACE: Workspace index on the specified monitor (zero-indexed).
 VALUE:     Possible values:
            bsp, columns, rows, vertical-stack, horizontal-stack,
            ultrawide-vertical-stack, grid, right-main-vertical-stack"
-  (unless (member value (list "bsp"
-                              "columns"
-                              "rows"
-                              "vertical-stack"
-                              "horizontal-stack"
-                              "ultrawide-vertical-stack"
-                              "grid"
-                              "right-main-vertical-stack"))
+  (unless (member value komorebi-api-default-layout)
     (error "Invalid value for 'value' %S" value))
   (komorebi-api-execute "workspace-layout" monitor workspace value))
 
@@ -793,14 +923,7 @@ WORKSPACE: Target workspace name.
 VALUE:     Possible values:
            bsp, columns, rows, vertical-stack, horizontal-stack,
            ultrawide-vertical-stack, grid, right-main-vertical-stack"
-  (unless (member value (list "bsp"
-                              "columns"
-                              "rows"
-                              "vertical-stack"
-                              "horizontal-stack"
-                              "ultrawide-vertical-stack"
-                              "grid"
-                              "right-main-vertical-stack"))
+  (unless (member value komorebi-api-default-layout)
     (error "Invalid value for 'value' %S" value))
   (komorebi-api-execute "named-workspace-layout" workspace value))
 
@@ -810,18 +933,11 @@ VALUE:     Possible values:
 MONITOR:            Monitor index (zero-indexed).
 WORKSPACE:          Workspace index on the specified monitor (zero-indexed).
 AT-CONTAINER-COUNT: The number of window containers on-screen required to
-                    trigger this layout rule
+                    trigger this layout rule.
 LAYOUT:             Possible values:
                     bsp, columns, rows, vertical-stack, horizontal-stack,
                     ultrawide-vertical-stack, grid, right-main-vertical-stack"
-  (unless (member layout (list "bsp"
-                               "columns"
-                               "rows"
-                               "vertical-stack"
-                               "horizontal-stack"
-                               "ultrawide-vertical-stack"
-                               "grid"
-                               "right-main-vertical-stack"))
+  (unless (member layout komorebi-api-default-layout)
     (error "Invalid value for 'layout' %S" layout))
   (komorebi-api-execute "workspace-layout-rule" monitor workspace at-container-count layout))
 
@@ -830,18 +946,11 @@ LAYOUT:             Possible values:
   "Add a dynamic layout rule for the specified workspace.
 WORKSPACE:          Target workspace name.
 AT-CONTAINER-COUNT: The number of window containers on-screen required to
-                    trigger this layout rule
+                    trigger this layout rule.
 LAYOUT:             Possible values:
                     bsp, columns, rows, vertical-stack, horizontal-stack,
                     ultrawide-vertical-stack, grid, right-main-vertical-stack"
-  (unless (member layout (list "bsp"
-                               "columns"
-                               "rows"
-                               "vertical-stack"
-                               "horizontal-stack"
-                               "ultrawide-vertical-stack"
-                               "grid"
-                               "right-main-vertical-stack"))
+  (unless (member layout komorebi-api-default-layout)
     (error "Invalid value for 'layout' %S" layout))
   (komorebi-api-execute "named-workspace-layout-rule" workspace at-container-count layout))
 
@@ -863,9 +972,8 @@ WORKSPACE: Target workspace name."
   "Enable or disable window tiling for the specified workspace.
 MONITOR:   Monitor index (zero-indexed).
 WORKSPACE: Workspace index on the specified monitor (zero-indexed).
-VALUE:     Possible values:
-           enable, disable"
-  (unless (member value (list "enable" "disable"))
+VALUE:     Possible values: enable, disable"
+  (unless (member value komorebi-api-value)
     (error "Invalid value for 'value' %S" value))
   (komorebi-api-execute "workspace-tiling" monitor workspace value))
 
@@ -873,9 +981,8 @@ VALUE:     Possible values:
 (defun komorebi-api-named-workspace-tiling (workspace value)
   "Enable or disable window tiling for the specified workspace.
 WORKSPACE: Target workspace name.
-VALUE:     Possible values:
-           enable, disable"
-  (unless (member value (list "enable" "disable"))
+VALUE:     Possible values: enable, disable"
+  (unless (member value komorebi-api-value)
     (error "Invalid value for 'value' %S" value))
   (komorebi-api-execute "named-workspace-tiling" workspace value))
 
@@ -898,7 +1005,7 @@ VALUE:     Name of the workspace as a String."
 ;;;###autoload
 (defun komorebi-api-toggle-float-override ()
   "Enable or disable float override, which makes it so every new window opens in
-floating mode"
+ floating mode"
   (interactive)
   (komorebi-api-execute "toggle-float-override"))
 
@@ -906,8 +1013,9 @@ floating mode"
 ;;;###autoload
 (defun komorebi-api-toggle-workspace-window-container-behaviour ()
   "Toggle the behaviour for new windows (stacking or dynamic tiling) for currently
-focused workspace. If there was no behaviour set for the workspace previously it
-takes the opposite of the global value"
+ focused workspace.
+ If there was no behaviour set for the workspace previously it takes the
+ opposite of the global value"
   (interactive)
   (komorebi-api-execute "toggle-workspace-window-container-behaviour"))
 
@@ -915,9 +1023,9 @@ takes the opposite of the global value"
 ;;;###autoload
 (defun komorebi-api-toggle-workspace-float-override ()
   "Enable or disable float override, which makes it so every new window opens in
-floating mode, for the currently focused workspace.
-If there was no override value set for the workspace previously it takes the
-opposite of the global value"
+ floating mode, for the currently focused workspace.
+ If there was no override value set for the workspace previously it takes the
+ opposite of the global value"
   (interactive)
   (komorebi-api-execute "toggle-workspace-float-override"))
 
@@ -980,9 +1088,9 @@ opposite of the global value"
 
 (defun komorebi-api-replace-configuration (path)
   "Replace the configuration of a running instance of komorebi from a static
-configuration file
+ configuration file
 PATH: Static configuration JSON file from which the configuration should be
-      loaded"
+      loaded."
   (komorebi-api-execute "replace-configuration" path))
 
 
@@ -993,12 +1101,14 @@ PATH: Static configuration JSON file from which the configuration should be
   (komorebi-api-execute "reload-configuration"))
 
 
+;;;###autoload
 (defun komorebi-api-watch-configuration (boolean-state)
-  "Enable or disable watching of legacy komorebi.ahk or komorebi.ps1 configurations
-(if they exist)
-BOOLEAN-STATE: Possible values:
-               enable, disable"
-  (unless (member boolean-state (list "enable" "disable"))
+  "Enable or disable watching of legacy komorebi.ahk or komorebi.ps1
+ configurations (if they exist)
+BOOLEAN-STATE: Possible values: enable, disable"
+  (interactive (list (completing-read "Enter value for <BOOLEAN_STATE>: "
+                                      komorebi-api-value nil t nil)))
+  (unless (member boolean-state komorebi-api-value)
     (error "Invalid value for 'boolean-state' %S" boolean-state))
   (komorebi-api-execute "watch-configuration" boolean-state))
 
@@ -1006,21 +1116,24 @@ BOOLEAN-STATE: Possible values:
 ;;;###autoload
 (defun komorebi-api-complete-configuration ()
   "For legacy komorebi.ahk or komorebi.ps1 configurations, signal that the final
-configuration option has been sent"
+ configuration option has been sent"
   (interactive)
   (komorebi-api-execute "complete-configuration"))
 
 
+;;;###autoload
 (defun komorebi-api-cross-monitor-move-behaviour (move-behaviour)
   "Set the behaviour when moving windows across monitor boundaries.
 MOVE-BEHAVIOUR: Possible values:
-                - SWAP:   Swap the window container with the window container at
-                          the edge of the adjacent monitor
-                - INSERT: Insert the window container into the focused workspace
-                          on the adjacent monitor
-                - NO-OP:  Do nothing if trying to move a window container in the
-                          direction of an adjacent monitor"
-  (unless (member move-behaviour (list "swap" "insert" "no-op"))
+                - SWAP:   Swap the window container with the window container
+                          at the edge of the adjacent monitor
+                - INSERT: Insert the window container into the focused
+                          workspace on the adjacent monitor
+                - NO-OP:  Do nothing if trying to move a window container in
+                          the direction of an adjacent monitor"
+  (interactive (list (completing-read "Enter value for <MOVE_BEHAVIOUR>: "
+                                      komorebi-api-move-behaviour nil t nil)))
+  (unless (member move-behaviour komorebi-api-move-behaviour)
     (error "Invalid value for 'move-behaviour' %S" move-behaviour))
   (komorebi-api-execute "cross-monitor-move-behaviour" move-behaviour))
 
@@ -1032,6 +1145,7 @@ MOVE-BEHAVIOUR: Possible values:
   (komorebi-api-execute "toggle-cross-monitor-move-behaviour"))
 
 
+;;;###autoload
 (defun komorebi-api-unmanaged-window-operation-behaviour (operation-behaviour)
   "Set the operation behaviour when the focused window is not managed.
 OPERATION-BEHAVIOUR: Possible values:
@@ -1039,80 +1153,77 @@ OPERATION-BEHAVIOUR: Possible values:
                               unmanaged/floated windows
                      - NO-OP: Ignore komorebic commands on temporarily
                               unmanaged/floated windows"
-  (unless (member operation-behaviour (list "op" "no-op"))
+  (interactive (list (completing-read "Enter value for <OPERATION_BEHAVIOUR>: "
+                                      komorebi-api-operation-behaviour
+                                      nil t nil)))
+  (unless (member operation-behaviour komorebi-api-operation-behaviour)
     (error "Invalid value for 'operation-behaviour' %S" operation-behaviour))
   (komorebi-api-execute "unmanaged-window-operation-behaviour" operation-behaviour))
 
 
 (defun komorebi-api-ignore-rule (identifier id)
   "Add a rule to ignore the specified application.
-IDENTIFIER: Possible values:
-            exe, class, title, path
+IDENTIFIER: Possible values: exe, class, title, path
 ID:         Identifier as a string."
-  (unless (member identifier (list "exe" "class" "title" "path"))
+  (unless (member identifier komorebi-api-identifier)
     (error "Invalid value for 'identifier' %S" identifier))
   (komorebi-api-execute "ignore-rule" identifier id))
 
 
 (defun komorebi-api-manage-rule (identifier id)
   "Add a rule to always manage the specified application.
-IDENTIFIER: Possible values:
-            exe, class, title, path
+IDENTIFIER: Possible values: exe, class, title, path
 ID:         Identifier as a string."
-  (unless (member identifier (list "exe" "class" "title" "path"))
+  (unless (member identifier komorebi-api-identifier)
     (error "Invalid value for 'identifier' %S" identifier))
   (komorebi-api-execute "manage-rule" identifier id))
 
 
 (defun komorebi-api-initial-workspace-rule (identifier id monitor workspace)
   "Add a rule to associate an application with a workspace on first show.
-IDENTIFIER: Possible values:
-            exe, class, title, path
+IDENTIFIER: Possible values: exe, class, title, path
 ID:         Identifier as a string.
 MONITOR:    Monitor index (zero-indexed).
 WORKSPACE:  Workspace index on the specified monitor (zero-indexed)."
-  (unless (member identifier (list "exe" "class" "title" "path"))
+  (unless (member identifier komorebi-api-identifier)
     (error "Invalid value for 'identifier' %S" identifier))
   (komorebi-api-execute "initial-workspace-rule" identifier id monitor workspace))
 
 
 (defun komorebi-api-initial-named-workspace-rule (identifier id workspace)
   "Add a rule to associate an application with a named workspace on first show.
-IDENTIFIER: Possible values:
-            exe, class, title, path
+IDENTIFIER: Possible values: exe, class, title, path
 ID:         Identifier as a string.
 WORKSPACE:  Name of a workspace."
-  (unless (member identifier (list "exe" "class" "title" "path"))
+  (unless (member identifier komorebi-api-identifier)
     (error "Invalid value for 'identifier' %S" identifier))
   (komorebi-api-execute "initial-named-workspace-rule" identifier id workspace))
 
 
 (defun komorebi-api-workspace-rule (identifier id monitor workspace)
   "Add a rule to associate an application with a workspace.
-IDENTIFIER: Possible values:
-            exe, class, title, path
+IDENTIFIER: Possible values: exe, class, title, path
 ID:         Identifier as a string.
 MONITOR:    Monitor index (zero-indexed).
 WORKSPACE:  Workspace index on the specified monitor (zero-indexed)."
-  (unless (member identifier (list "exe" "class" "title" "path"))
+  (unless (member identifier komorebi-api-identifier)
     (error "Invalid value for 'identifier' %S" identifier))
   (komorebi-api-execute "workspace-rule" identifier id monitor workspace))
 
 
 (defun komorebi-api-named-workspace-rule (identifier id workspace)
   "Add a rule to associate an application with a named workspace.
-IDENTIFIER: Possible values:
-            exe, class, title, path
+IDENTIFIER: Possible values: exe, class, title, path
 ID:         Identifier as a string.
 WORKSPACE:  Name of a workspace."
-  (unless (member identifier (list "exe" "class" "title" "path"))
+  (unless (member identifier komorebi-api-identifier)
     (error "Invalid value for 'identifier' %S" identifier))
   (komorebi-api-execute "named-workspace-rule" identifier id workspace))
 
 
 (defun komorebi-api-clear-workspace-rules (monitor workspace)
   "Remove all application association rules for a workspace by monitor and
-workspace index
+ workspace index
 MONITOR:   Monitor index (zero-indexed).
 WORKSPACE: Workspace index on the specified monitor (zero-indexed)."
   (komorebi-api-execute "clear-workspace-rules" monitor workspace))
@@ -1133,40 +1244,36 @@ WORKSPACE: Name of a workspace."
 
 (defun komorebi-api-identify-object-name-change-application (identifier id)
   "Identify an application that sends EVENT_OBJECT_NAMECHANGE on launch.
-IDENTIFIER: Possible values:
-            exe, class, title, path
+IDENTIFIER: Possible values: exe, class, title, path
 ID:         Identifier as a string."
-  (unless (member identifier (list "exe" "class" "title" "path"))
+  (unless (member identifier komorebi-api-identifier)
     (error "Invalid value for 'identifier' %S" identifier))
   (komorebi-api-execute "identify-object-name-change-application" identifier id))
 
 
 (defun komorebi-api-identify-tray-application (identifier id)
   "Identify an application that closes to the system tray.
-IDENTIFIER: Possible values:
-            exe, class, title, path
+IDENTIFIER: Possible values: exe, class, title, path
 ID:         Identifier as a string."
-  (unless (member identifier (list "exe" "class" "title" "path"))
+  (unless (member identifier komorebi-api-identifier)
     (error "Invalid value for 'identifier' %S" identifier))
   (komorebi-api-execute "identify-tray-application" identifier id))
 
 
 (defun komorebi-api-identify-layered-application (identifier id)
   "Identify an application that has WS_EX_LAYERED, but should still be managed.
-IDENTIFIER: Possible values:
-            exe, class, title, path
+IDENTIFIER: Possible values: exe, class, title, path
 ID:         Identifier as a string."
-  (unless (member identifier (list "exe" "class" "title" "path"))
+  (unless (member identifier komorebi-api-identifier)
     (error "Invalid value for 'identifier' %S" identifier))
   (komorebi-api-execute "identify-layered-application" identifier id))
 
 
 (defun komorebi-api-remove-title-bar (identifier id)
   "Whitelist an application for title bar removal.
-IDENTIFIER: Possible values:
-            exe, class, title, path
+IDENTIFIER: Possible values: exe, class, title, path
 ID:         Identifier as a string."
-  (unless (member identifier (list "exe" "class" "title" "path"))
+  (unless (member identifier komorebi-api-identifier)
     (error "Invalid value for 'identifier' %S" identifier))
   (komorebi-api-execute "remove-title-bar" identifier id))
 
@@ -1178,11 +1285,13 @@ ID:         Identifier as a string."
   (komorebi-api-execute "toggle-title-bars"))
 
 
+;;;###autoload
 (defun komorebi-api-border (boolean-state)
   "Enable or disable borders.
-BOOLEAN-STATE: Possible values:
-               enable, disable"
-  (unless (member boolean-state (list "enable" "disable"))
+BOOLEAN-STATE: Possible values: enable, disable"
+  (interactive (list (completing-read "Enter value for <BOOLEAN_STATE>: "
+                                      komorebi-api-value nil t nil)))
+  (unless (member boolean-state komorebi-api-value)
     (error "Invalid value for 'boolean-state' %S" boolean-state))
   (komorebi-api-execute "border" boolean-state))
 
@@ -1192,10 +1301,9 @@ BOOLEAN-STATE: Possible values:
 R:           Red.
 G:           Green.
 B:           Blue.
-WINDOW-KIND: Possible values:
-             single, stack, monocle, unfocused, floating
-             (default single)"
-  (when window-kind
+WINDOW-KIND: Possible values: (default SINGLE)
+             single, stack, monocle, unfocused, floating"
+  (when (member window-kind komorebi-api-window-kind)
     (setq window-kind (format "--window-kind %s" window-kind)))
   (komorebi-api-execute "border-colour" r g b window-kind))
 
@@ -1212,6 +1320,7 @@ OFFSET: Desired offset of the window border."
   (komorebi-api-execute "border-offset" offset))
 
 
+;;;###autoload
 (defun komorebi-api-border-style (style)
   "Set the border style.
 STYLE: Desired border style.
@@ -1219,27 +1328,35 @@ STYLE: Desired border style.
        - SYSTEM:  Use the system border style
        - ROUNDED: Use the Windows 11-style rounded borders
        - SQUARE:  Use the Windows 10-style square borders"
-  (unless (member style (list "system" "rounded" "square"))
+  (interactive (list (completing-read "Enter value for <STYLE>: "
+                                      komorebi-api-style-border nil t nil)))
+  (unless (member style komorebi-api-style-border)
     (error "Invalid value for 'style' %S" style))
   (komorebi-api-execute "border-style" style))
 
 
+;;;###autoload
 (defun komorebi-api-border-implementation (style)
   "Set the border implementation.
 STYLE: Desired border implementation.
        Possible values:
        - KOMOREBI: Use the adjustable komorebi border implementation
        - WINDOWS:  Use the thin Windows accent border implementation"
-  (unless (member style (list "komorebi" "windows"))
+  (interactive (list (completing-read "Enter value for <STYLE>: "
+                                      komorebi-api-style-mouse-follows
+                                      nil t nil)))
+  (unless (member style komorebi-api-style-mouse-follows)
     (error "Invalid value for 'style' %S" style))
   (komorebi-api-execute "border-implementation" style))
 
 
+;;;###autoload
 (defun komorebi-api-transparency (boolean-state)
   "Enable or disable transparency for unfocused windows.
-BOOLEAN-STATE: Possible values:
-               enable, disable"
-  (unless (member boolean-state (list "enable" "disable"))
+BOOLEAN-STATE: Possible values: enable, disable"
+  (interactive (list (completing-read "Enter value for <BOOLEAN_STATE>: "
+                                      komorebi-api-value nil t nil)))
+  (unless (member boolean-state komorebi-api-value)
     (error "Invalid value for 'boolean-state' %S" boolean-state))
   (komorebi-api-execute "transparency" boolean-state))
 
@@ -1257,17 +1374,21 @@ ALPHA: Alpha."
   (komorebi-api-execute "toggle-transparency"))
 
 
+;;;###autoload
 (defun komorebi-api-animation (boolean-state &optional animation-type)
   "Enable or disable movement animations.
-BOOLEAN-STATE:  Possible values:
-                enable, disable
+BOOLEAN-STATE:  Possible values: enable, disable
 ANIMATION-TYPE: Animation type to apply the state to. If not specified, sets
-                global state
+                global state.
                 Possible values:
                 movement, transparency"
-  (unless (member boolean-state (list "enable" "disable"))
+  (interactive (list (completing-read "Enter value for <BOOLEAN_STATE>: "
+                                      komorebi-api-value nil t nil)
+                     (completing-read "Enter value for animation-type: "
+                                      komorebi-api-animation-type nil t nil)))
+  (unless (member boolean-state komorebi-api-value)
     (error "Invalid value for 'boolean-state' %S" boolean-state))
-  (when animation-type
+  (when (member animation-type komorebi-api-animation-type)
     (setq animation-type (format "--animation-type %s" animation-type)))
   (komorebi-api-execute "animation" boolean-state animation-type))
 
@@ -1276,10 +1397,10 @@ ANIMATION-TYPE: Animation type to apply the state to. If not specified, sets
   "Set the duration for movement animations in ms.
 DURATION:       Desired animation durations in ms.
 ANIMATION-TYPE: Animation type to apply the duration to. If not specified, sets
-                global duration
+                global duration.
                 Possible values:
                 movement, transparency"
-  (when animation-type
+  (when (member animation-type komorebi-api-animation-type)
     (setq animation-type (format "--animation-type %s" animation-type)))
   (komorebi-api-execute "animation-duration" duration animation-type))
 
@@ -1290,36 +1411,43 @@ FPS: Desired animation frames per second."
   (komorebi-api-execute "animation-fps" fps))
 
 
+;;;###autoload
 (defun komorebi-api-animation-style (&optional style animation-type)
   "Set the ease function for movement animations.
 STYLE:          Desired ease function for animation.
-                Possible values:
+                Possible values: (default LINEAR)
                 linear, ease-in-sine, ease-out-sine, ease-in-out-sine,
                 ease-in-quad, ease-out-quad, ease-in-out-quad, ease-in-cubic,
                 ease-in-out-cubic, ease-in-quart, ease-out-quart,
                 ease-in-out-quart, ease-in-quint, ease-out-quint,
-                ease-in-out-quint, ease-in-expo, ease-out-expo, ease-in-out-expo,
-                ease-in-circ, ease-out-circ, ease-in-out-circ, ease-in-back,
-                ease-out-back, ease-in-out-back, ease-in-elastic,
+                ease-in-out-quint, ease-in-expo, ease-out-expo,
+                ease-in-out-expo, ease-in-circ, ease-out-circ, ease-in-out-circ,
+                ease-in-back, ease-out-back, ease-in-out-back, ease-in-elastic,
                 ease-out-elastic, ease-in-out-elastic, ease-in-bounce,
                 ease-out-bounce, ease-in-out-bounce
-                (default linear)
 ANIMATION-TYPE: Animation type to apply the style to. If not specified, sets
-                global style
+                global style.
                 Possible values:
                 movement, transparency"
-  (when style
+  (interactive (list (completing-read "Enter value for style: "
+                                      komorebi-api-style-animation
+                                      nil t linear)
+                     (completing-read "Enter value for animation-type: "
+                                      komorebi-api-animation-type nil t nil)))
+  (when (member style komorebi-api-style-animation)
     (setq style (format "--style %s" style)))
-  (when animation-type
+  (when (member animation-type komorebi-api-animation-type)
     (setq animation-type (format "--animation-type %s" animation-type)))
   (komorebi-api-execute "animation-style" style animation-type))
 
 
+;;;###autoload
 (defun komorebi-api-mouse-follows-focus (boolean-state)
   "Enable or disable mouse follows focus on all workspaces.
-BOOLEAN-STATE: Possible values:
-               enable, disable"
-  (unless (member boolean-state (list "enable" "disable"))
+BOOLEAN-STATE: Possible values: enable, disable"
+  (interactive (list (completing-read "Enter value for <BOOLEAN_STATE>: "
+                                      komorebi-api-value nil t nil)))
+  (unless (member boolean-state komorebi-api-value)
     (error "Invalid value for 'boolean-state' %S" boolean-state))
   (komorebi-api-execute "mouse-follows-focus" boolean-state))
 
@@ -1334,7 +1462,7 @@ BOOLEAN-STATE: Possible values:
 (defun komorebi-api-ahk-app-specific-configuration (path &optional override-path)
   "Generate common app-specific configurations and fixes to use in komorebi.ahk.
 PATH:          YAML file from which the application-specific configurations
-               should be loaded
+               should be loaded.
 OVERRIDE-PATH: Optional YAML file of overrides to apply over the first file."
   (komorebi-api-execute "ahk-app-specific-configuration" path override-path))
 
@@ -1342,7 +1470,7 @@ OVERRIDE-PATH: Optional YAML file of overrides to apply over the first file."
 (defun komorebi-api-pwsh-app-specific-configuration (path &optional override-path)
   "Generate common app-specific configurations and fixes in a PowerShell script.
 PATH:          YAML file from which the application-specific configurations
-               should be loaded
+               should be loaded.
 OVERRIDE-PATH: Optional YAML file of overrides to apply over the first file."
   (komorebi-api-execute "pwsh-app-specific-configuration" path override-path))
 
@@ -1350,14 +1478,14 @@ OVERRIDE-PATH: Optional YAML file of overrides to apply over the first file."
 (defun komorebi-api-convert-app-specific-configuration (path)
   "Convert a v1 ASC YAML file to a v2 ASC JSON file.
 PATH: YAML file from which the application-specific configurations should be
-      loaded"
+      loaded."
   (komorebi-api-execute "convert-app-specific-configuration" path))
 
 
 ;;;###autoload
 (defun komorebi-api-fetch-app-specific-configuration ()
   "Fetch the latest version of applications.json from
-komorebi-application-specific-configuration"
+ komorebi-application-specific-configuration"
   (interactive)
   (komorebi-api-execute "fetch-app-specific-configuration"))
 
@@ -1393,7 +1521,7 @@ komorebi-application-specific-configuration"
 ;;;###autoload
 (defun komorebi-api-generate-static-config ()
   "Generates a static configuration JSON file based on the current window manager
-state"
+ state"
   (interactive)
   (komorebi-api-execute "generate-static-config"))
 
@@ -1401,10 +1529,10 @@ state"
 (defun komorebi-api-enable-autostart (&optional config whkd ahk bar masir)
   "Generates the komorebi.lnk shortcut in shell:startup to autostart komorebi.
 CONFIG: Path to a static configuration JSON file.
-WHKD:  
-AHK:   
-BAR:   
-MASIR: "
+WHKD:   Enable autostart of whkd.
+AHK:    Enable autostart of ahk.
+BAR:    Enable autostart of komorebi-bar.
+MASIR:  Enable autostart of masir."
   (when config
     (setq config (format "--config %s" config)))
   (when whkd
