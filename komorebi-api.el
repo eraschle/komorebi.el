@@ -31,8 +31,8 @@
 (defun komorebi-api--args-get (args)
   "Return string of ARGS."
   (string-join
-    (seq-filter (lambda (arg) (not (or (null arg) (string-empty-p arg)))) args)
-    " "))
+   (seq-filter (lambda (arg) (not (or (null arg) (string-empty-p arg)))) args)
+   " "))
 
 
 (defun komorebi-api--execute (command &rest args)
@@ -610,7 +610,7 @@ INDEX-PREFERENCE: Preferred monitor index (zero-indexed).
 DISPLAY:          Display name as identified in komorebic state."
   (interactive
    (list
-   (read-number "INDEX-PREFERENCE: Preferred monitor index (zero-indexed):" nil)
+    (read-number "INDEX-PREFERENCE: Preferred monitor index (zero-indexed):" nil)
     (read-string "DISPLAY: Display name as identified in komorebic state:" nil nil nil)))
   (komorebi-api--execute "display-index-preference" index-preference display))
 
@@ -809,7 +809,7 @@ RIGHT:  Size of the right work area offset.
 BOTTOM: Size of the bottom work area offset."
   (interactive
    (list
-   (read-number "LEFT: Size of the left work area offset (set right to left * 2 to maintain right padding):" nil)
+    (read-number "LEFT: Size of the left work area offset (set right to left * 2 to maintain right padding):" nil)
     (read-number "TOP: Size of the top work area offset (set bottom to the same value to maintain bottom padding):" nil)
     (read-number "RIGHT: Size of the right work area offset:" nil)
     (read-number "BOTTOM: Size of the bottom work area offset:" nil)))
@@ -884,7 +884,7 @@ WORKSPACE:  Name of a workspace."
   (interactive
    (list
     (completing-read "Enter value for IDENTIFIER: " komorebi-api-identifier
-                                                    nil t nil)
+                     nil t nil)
     (read-string "ID: Identifier as a string:" nil nil nil)
     (read-string "WORKSPACE: Name of a workspace:" nil nil nil)))
   (unless (member identifier komorebi-api-identifier)
@@ -902,7 +902,7 @@ WORKSPACE:  Workspace index on the specified monitor (zero-indexed)."
   (interactive
    (list
     (completing-read "Enter value for IDENTIFIER: " komorebi-api-identifier
-                                                    nil t nil)
+                     nil t nil)
     (read-string "ID: Identifier as a string:" nil nil nil)
     (read-number "MONITOR: Monitor index (zero-indexed):" nil)
     (read-number "WORKSPACE: Workspace index on the specified monitor (zero-indexed):" nil)))
@@ -1006,7 +1006,7 @@ RIGHT:            Right value of the monitor's size Rect.
 BOTTOM:           Bottom value of the monitor's size Rect."
   (interactive
    (list
-   (read-number "INDEX-PREFERENCE: Preferred monitor index (zero-indexed):" nil)
+    (read-number "INDEX-PREFERENCE: Preferred monitor index (zero-indexed):" nil)
     (read-number "LEFT: Left value of the monitor's size Rect:" nil)
     (read-number "TOP: Top value of the monitor's size Rect:" nil)
     (read-number "RIGHT: Right value of the monitor's size Rect:" nil)
@@ -1177,7 +1177,7 @@ WORKSPACE:  Name of a workspace."
   (interactive
    (list
     (completing-read "Enter value for IDENTIFIER: " komorebi-api-identifier
-                                                    nil t nil)
+                     nil t nil)
     (read-string "ID: Identifier as a string:" nil nil nil)
     (read-string "WORKSPACE: Name of a workspace:" nil nil nil)))
   (unless (member identifier komorebi-api-identifier)
@@ -1345,7 +1345,7 @@ PIXELS: The delta of pixels by which to increase or decrease window dimensions
         when resizing."
   (interactive
    (list
-   (read-number "PIXELS: The delta of pixels by which to increase or decrease window dimensions when resizing:" nil)))
+    (read-number "PIXELS: The delta of pixels by which to increase or decrease window dimensions when resizing:" nil)))
   (komorebi-api--execute "resize-delta" pixels))
 
 
@@ -1544,7 +1544,7 @@ MASIR: Stop masir if it is running as a background process."
 NAMED-PIPE: Name of the pipe to send event notifications to."
   (interactive
    (list
-   (read-string "NAMED-PIPE: Name of the pipe to send event notifications to:" nil nil nil)))
+    (read-string "NAMED-PIPE: Name of the pipe to send event notifications to:" nil nil nil)))
   (komorebi-api--execute "subscribe-pipe" named-pipe))
 
 
@@ -1554,7 +1554,7 @@ NAMED-PIPE: Name of the pipe to send event notifications to."
 SOCKET: Name of the socket to send event notifications to."
   (interactive
    (list
-   (read-string "SOCKET: Name of the socket to send event notifications to:" nil nil nil)))
+    (read-string "SOCKET: Name of the socket to send event notifications to:" nil nil nil)))
   (komorebi-api--execute "subscribe-socket" socket))
 
 
@@ -1726,7 +1726,7 @@ OPERATION-BEHAVIOUR: Possible values:
 NAMED-PIPE: Name of the pipe to stop sending event notifications to."
   (interactive
    (list
-   (read-string "NAMED-PIPE: Name of the pipe to stop sending event notifications to:" nil nil nil)))
+    (read-string "NAMED-PIPE: Name of the pipe to stop sending event notifications to:" nil nil nil)))
   (komorebi-api--execute "unsubscribe-pipe" named-pipe))
 
 
@@ -1736,7 +1736,7 @@ NAMED-PIPE: Name of the pipe to stop sending event notifications to."
 SOCKET: Name of the socket to stop sending event notifications to."
   (interactive
    (list
-   (read-string "SOCKET: Name of the socket to stop sending event notifications to:" nil nil nil)))
+    (read-string "SOCKET: Name of the socket to stop sending event notifications to:" nil nil nil)))
   (komorebi-api--execute "unsubscribe-socket" socket))
 
 
@@ -1845,7 +1845,7 @@ WORKSPACE:  Workspace index on the specified monitor (zero-indexed)."
   (interactive
    (list
     (completing-read "Enter value for IDENTIFIER: " komorebi-api-identifier
-                                                    nil t nil)
+                     nil t nil)
     (read-string "ID: Identifier as a string:" nil nil nil)
     (read-number "MONITOR: Monitor index (zero-indexed):" nil)
     (read-number "WORKSPACE: Workspace index on the specified monitor (zero-indexed):" nil)))
