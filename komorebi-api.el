@@ -48,15 +48,23 @@
       result)))
 
 
+(defun komorebi-api--path-get (current-path)
+  "Return the CURRENT-PATH with slashes instead of backslashes."
+  (let ((path (string-replace "\\" "/" current-path)))
+    (unless (string-suffix-p "/" path)
+      (setq path (concat path "/")))
+    path))
+
+
 (defun komorebi-api--config-home ()
   "Return the path to the komorebi configuration folder or nil."
   (let ((config-path (getenv "KOMOREBI_CONFIG_HOME"))
         (user-profile (getenv "USERPROFILE")))
     (if (and config-path (file-directory-p config-path))
-        (string-replace "\\" "/" config-path)
+        (komorebi-api--path-get config-path)
       (setq config-path (concat user-profile ".config" ".komorebi"))
       (if (file-directory-p config-path)
-          (string-replace "\\" "/" config-path)
+          (komorebi-api--path-get config-path)
         nil))))
 
 
