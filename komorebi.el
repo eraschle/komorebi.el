@@ -448,6 +448,7 @@ PREFIX is used to specify the type of direction."
   "Return non-nil if PATH is a WSL path."
   (string-match komorebi--wsl-path-regex path))
 
+
 (defun komorebi-to-win-path (path)
   "Convert Windows PATH to Unix path."
   (if (komorebi-is-wsl-path-p path)
@@ -463,6 +464,16 @@ PREFIX is used to specify the type of direction."
       (setq path (komorebi-to-wsl-path path))
     (setq path (komorebi-to-win-path path)))
   (file-exists-p path))
+
+
+;;;###autoload
+(defun komorebi-configuration-edit ()
+  "Create buffer with configuration file."
+  (interactive)
+  (let ((config (komorebi-current-config)))
+    (when (komorebi-is-wsl)
+      (setq config (komorebi-to-wsl-path config)))
+    (find-file config)))
 
 
 (defcustom komorebi-configuration-files nil
