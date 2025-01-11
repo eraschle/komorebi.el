@@ -415,10 +415,59 @@ PREFIX is used to specify the type of direction."
 ;;
 ;;; Configuration
 
+(defun komorebi-is-wsl ()
+  "Return non-nil if OS is WSL."
+  (and (featurep :system 'linux)
+       (string-match "Linux.*[Mm]icrosoft.*Linux"
+                     (shell-command-to-string "uname -a"))))
+
+
+(defvar komorebi--windows-path-regex "^\\(\\([a-zA-Z]+\\):\\).*"
+  "Regex to match start of Windows path.")
+
+
+(defun komorebi-is-win-path-p (path)
+  "Return non-nil if PATH is a Windows path."
+  (string-match komorebi--windows-path-regex path))
+
+
+(defun komorebi-to-wsl-path (path)
+  "Convert Windows PATH to Unix path."
+  (if (komorebi-is-win-path-p path)
+      (replace-match
+       (concat "/mnt/" (downcase (match-string 2 path)))
+       t nil path 1)
+    path))
+
+
+(defvar komorebi--wsl-path-regex "^\\(/mnt/\\([a-zA-Z]+\\)\\)/.*"
+  "Regex to match start of WSL path.")
+
+
+(defun komorebi-is-wsl-path-p (path)
+  "Return non-nil if PATH is a WSL path."
+  (string-match komorebi--wsl-path-regex path))
+
+(defun komorebi-to-win-path (path)
+  "Convert Windows PATH to Unix path."
+  (if (komorebi-is-wsl-path-p path)
+      (replace-match
+       (concat (match-string 2 path) ":")
+       nil nil path 1)
+    path))
+
+
+(defun komorebi-path-exists (path)
+  "Return non-nil if PATH exists."
+  (if (komorebi-is-wsl)
+      (setq path (komorebi-to-wsl-path path))
+    (setq path (komorebi-to-win-path path)))
+  (file-exists-p path))
+
 
 (defcustom komorebi-configuration-files nil
   "List of Komorebi configuration files."
-  :type 'list
+  :type '(repeat string)
   :group 'komorebi)
 
 
@@ -426,7 +475,7 @@ PREFIX is used to specify the type of direction."
   "Return non-nil if FILE-PATH is a valid configuration file.
 If EXCLUDE-CURRENT is non-nil, exclude the config file
 of the current process."
-  (and (file-exists-p file-path)
+  (and (komorebi-path-exists file-path)
        (not (and exclude-current
                  (equal file-path (komorebi--current-config))))))
 
@@ -437,7 +486,7 @@ If EXCLUDE-CURRENT is non-nil, the list does not include the config file
 of the current process."
   (seq-map (lambda (cfg) (file-name-base cfg))
            (seq-filter (lambda (cfg)
-                         (unless (file-exists-p cfg)
+                         (unless (komorebi-path-exists cfg)
                            (message "Komorebi: Not found %s" cfg))
                          (komorebi--valid-config cfg exclude-current))
                        komorebi-configuration-files)))
