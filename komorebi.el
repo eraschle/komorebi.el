@@ -544,6 +544,14 @@ Determines if Komorebi is running is by checking if static configuration is set.
   (komorebi-api-replace-configuration config))
 
 
+;;;###autoload
+(defmacro komorebi-go-to! (name exe)
+  "Move the focus with komorebi to the window with EXE.
+NAME is as the suffix of the function name."
+  `(defun ,(intern (format "komorebi-go-to-%s" name)) ()
+     (interactive)
+     (komorebi-api-eager-focus ,exe)))
+
 ;;
 ;;; Minor Mode
 
