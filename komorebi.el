@@ -1,13 +1,13 @@
 ;;; komorebi.el --- Description -*- lexical-binding: t; -*-
 ;;
-;; Copyright (C) 2024 Erich Raschle
+;; Copyright (C) 2024, 2025 Erich Raschle
 ;;
 ;; Author: Erich Raschle <erichraschle@gmail.com>
 ;; Maintainer: Erich Raschle <erichraschle@gmail.com>
 ;; Created: Oktober 07, 2024
 ;; Modified: Oktober 07, 2024
 ;; Version: 0.0.1
-;; Keywords: abbrev bib c calendar comm convenience data docs emulations extensions faces files frames games hardware help hypermedia i18n internal languages lisp local maint mail matching mouse multimedia news outlines processes terminals tex tools unix vc wp
+;; Keywords: extensions help languages local processes
 ;; Homepage: https://github.com/elyo/komorebi
 ;; Package-Requires: ((emacs "29.1"))
 ;;
@@ -20,6 +20,7 @@
 ;;; Code:
 
 (require 'komorebi-api)
+(require 'komorebi-path)
 (require 'komorebi-help)
 
 
@@ -415,64 +416,14 @@ PREFIX is used to specify the type of direction."
 ;;
 ;;; Configuration
 
-(defun komorebi-is-wsl ()
-  "Return non-nil if OS is WSL."
-  (and (featurep :system 'linux)
-       (string-match "Linux.*[Mm]icrosoft.*Linux"
-                     (shell-command-to-string "uname -a"))))
-
-
-(defvar komorebi--windows-path-regex "^\\(\\([a-zA-Z]+\\):\\).*"
-  "Regex to match start of Windows path.")
-
-
-(defun komorebi-is-win-path-p (path)
-  "Return non-nil if PATH is a Windows path."
-  (string-match komorebi--windows-path-regex path))
-
-
-(defun komorebi-to-wsl-path (path)
-  "Convert Windows PATH to Unix path."
-  (if (komorebi-is-win-path-p path)
-      (replace-match
-       (concat "/mnt/" (downcase (match-string 2 path)))
-       t nil path 1)
-    path))
-
-
-(defvar komorebi--wsl-path-regex "^\\(/mnt/\\([a-zA-Z]+\\)\\)/.*"
-  "Regex to match start of WSL path.")
-
-
-(defun komorebi-is-wsl-path-p (path)
-  "Return non-nil if PATH is a WSL path."
-  (string-match komorebi--wsl-path-regex path))
-
-
-(defun komorebi-to-win-path (path)
-  "Convert Windows PATH to Unix path."
-  (if (komorebi-is-wsl-path-p path)
-      (replace-match
-       (concat (match-string 2 path) ":")
-       nil nil path 1)
-    path))
-
-
-(defun komorebi-path-exists (path)
-  "Return non-nil if PATH exists."
-  (if (komorebi-is-wsl)
-      (setq path (komorebi-to-wsl-path path))
-    (setq path (komorebi-to-win-path path)))
-  (file-exists-p path))
-
 
 ;;;###autoload
 (defun komorebi-configuration-edit ()
   "Create buffer with configuration file."
   (interactive)
   (let ((config (komorebi-current-config)))
-    (when (komorebi-is-wsl)
-      (setq config (komorebi-to-wsl-path config)))
+    (when (featurep :system 'linux)
+      (setq config (komorebi-path-to-wsl config)))
     (find-file config)))
 
 
