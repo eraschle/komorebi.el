@@ -490,7 +490,7 @@ Determines if Komorebi is running is by checking if static configuration is set.
   "Replace Komorebi static configuration with CONFIG."
   (interactive (list (komorebi-read-config
                       (komorebi-is-started))))
-  (unless (file-exists-p config)
+  (unless (komorebi-path-exists config)
     (error "Configuration file %s does not exist" config))
   (komorebi-api-replace-configuration config))
 
