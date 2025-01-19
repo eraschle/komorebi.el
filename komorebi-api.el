@@ -452,7 +452,7 @@ WORKSPACE: Workspace index on the specified monitor (zero-indexed)."
 ;;;###autoload
 (defun komorebi-api-clear-workspace-rules (monitor workspace)
   "Remove all application association rules for a workspace by monitor and
- workspace index
+workspace index
 MONITOR:   Monitor index (zero-indexed).
 WORKSPACE: Workspace index on the specified monitor (zero-indexed)."
   (interactive
@@ -479,7 +479,7 @@ WORKSPACE: Workspace index on the specified monitor (zero-indexed)."
 ;;;###autoload
 (defun komorebi-api-complete-configuration ()
   "For legacy komorebi.ahk or komorebi.ps1 configurations, signal that the final
- configuration option has been sent"
+configuration option has been sent"
   (interactive)
   (komorebi-api--execute "complete-configuration"))
 
@@ -649,7 +649,7 @@ CYCLE-DIRECTION: Possible values: previous, next"
 ;;;###autoload
 (defun komorebi-api-cycle-stack-index (cycle-direction)
   "Cycle the index of the focused window in the focused stack in the specified
- cycle direction
+cycle direction
 CYCLE-DIRECTION: Possible values: previous, next"
   (interactive (list (completing-read "Enter value for CYCLE-DIRECTION: "
                                       komorebi-api-cycle-direction nil t)))
@@ -730,7 +730,7 @@ MASIR:  Enable autostart of masir."
 ;;;###autoload
 (defun komorebi-api-enforce-workspace-rules ()
   "Enforce all workspace rules, including initial workspace rules that have already
- been applied"
+been applied"
   (interactive)
   (komorebi-api--execute "enforce-workspace-rules"))
 
@@ -760,7 +760,7 @@ WORKSPACE-COUNT: Number of desired workspaces."
 ;;;###autoload
 (defun komorebi-api-fetch-app-specific-configuration ()
   "Fetch the latest version of applications.json from
- komorebi-application-specific-configuration"
+komorebi-application-specific-configuration"
   (interactive)
   (komorebi-api--execute "fetch-app-specific-configuration"))
 
@@ -873,7 +873,7 @@ SIZE: Pixels size to set as an integer."
 ;;;###autoload
 (defun komorebi-api-generate-static-config ()
   "Generates a static configuration JSON file based on the current window manager
- state"
+state"
   (interactive)
   (komorebi-api--execute "generate-static-config"))
 
@@ -1400,7 +1400,7 @@ ID:         Identifier as a string."
 ;;;###autoload
 (defun komorebi-api-replace-configuration (path)
   "Replace the configuration of a running instance of komorebi from a static
- configuration file
+configuration file
 PATH: Static configuration JSON file from which the configuration should be
       loaded."
   (interactive
@@ -1689,7 +1689,7 @@ TARGET: Target index (zero-indexed)."
 ;;;###autoload
 (defun komorebi-api-toggle-float-override ()
   "Enable or disable float override, which makes it so every new window opens in
- floating mode"
+floating mode"
   (interactive)
   (komorebi-api--execute "toggle-float-override"))
 
@@ -1753,9 +1753,9 @@ TARGET: Target index (zero-indexed)."
 ;;;###autoload
 (defun komorebi-api-toggle-workspace-float-override ()
   "Enable or disable float override, which makes it so every new window opens in
- floating mode, for the currently focused workspace.
- If there was no override value set for the workspace previously it takes the
- opposite of the global value"
+floating mode, for the currently focused workspace.
+If there was no override value set for the workspace previously it takes the
+opposite of the global value"
   (interactive)
   (komorebi-api--execute "toggle-workspace-float-override"))
 
@@ -1764,7 +1764,7 @@ TARGET: Target index (zero-indexed)."
 (defun komorebi-api-toggle-workspace-window-container-behaviour ()
   "Toggle the behaviour for new windows (stacking or dynamic tiling) for currently
 focused workspace. If there was no behaviour set for the workspace previously it
- takes the opposite of the global value"
+takes the opposite of the global value"
   (interactive)
   (komorebi-api--execute "toggle-workspace-window-container-behaviour"))
 
@@ -1855,7 +1855,7 @@ SOCKET: Name of the socket to stop sending event notifications to."
 ;;;###autoload
 (defun komorebi-api-watch-configuration (boolean-state)
   "Enable or disable watching of legacy komorebi.ahk or komorebi.ps1 configurations
- (if they exist)
+(if they exist)
 BOOLEAN-STATE: Possible values: enable, disable"
   (interactive (list (completing-read "Enter value for BOOLEAN-STATE: "
                                       komorebi-api-boolean-state nil t)))
