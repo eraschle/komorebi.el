@@ -22,7 +22,7 @@
 
 (defun komorebi-path--replace-drive (path drive)
   "Replace the drive part in PATH with DRIVE."
-  (replace-match drive nil nil path 1))
+  (replace-match drive t nil path 1))
 
 
 (defcustom komorebi-path-windows-regex "^\\(\\([a-zA-Z]+\\):\\).*"
