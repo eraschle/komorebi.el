@@ -5,7 +5,7 @@
 ;; Author: Erich Raschle <erichraschle@gmail.com>
 ;; Maintainer: Erich Raschle <erichraschle@gmail.com>
 ;; Created: Oktober 07, 2024
-;; Modified: January 19, 2025
+;; Modified: March 06, 2025
 ;; Version: 0.0.2
 ;; Keywords: docs emulations extensions help languages lisp local processes
 ;; Homepage: https://github.com/eraschle/pyKomorebi
@@ -125,7 +125,8 @@
 (defvar komorebi-api-state-query (list "focused-monitor-index"
                                        "focused-workspace-index"
                                        "focused-container-index"
-                                       "focused-window-index")
+                                       "focused-window-index"
+                                       "focused-workspace-name")
   "List of possible values for `state-query'.")
 
 (defvar komorebi-api-style-animation (list "linear"
@@ -767,7 +768,7 @@ komorebi-application-specific-configuration"
 
 ;;;###autoload
 (defun komorebi-api-flip-layout (axis)
-  "Flip the layout on the focused workspace (BSP only).
+  "Flip the layout on the focused workspace.
 AXIS: Possible values: horizontal, vertical, horizontal-and-vertical"
   (interactive (list (completing-read "Enter value for AXIS: "
                                       komorebi-api-axis nil t)))
@@ -800,6 +801,13 @@ OPERATION-DIRECTION: Possible values: left, right, up, down"
 TARGET: Target index (zero-indexed)."
   (interactive (list (read-number "TARGET: Target index (zero-indexed):")))
   (komorebi-api--execute "focus-monitor" target))
+
+
+;;;###autoload
+(defun komorebi-api-focus-monitor-at-cursor ()
+  "Focus the monitor at the current cursor location."
+  (interactive)
+  (komorebi-api--execute "focus-monitor-at-cursor"))
 
 
 ;;;###autoload
@@ -1348,7 +1356,8 @@ OVERRIDE-PATH: Optional YAML file of overrides to apply over the first file."
   "Query the current window manager state.
 STATE-QUERY: Possible values:
              focused-monitor-index, focused-workspace-index,
-             focused-container-index, focused-window-index"
+             focused-container-index, focused-window-index,
+             focused-workspace-name"
   (interactive (list (completing-read "Enter value for STATE-QUERY: "
                                       komorebi-api-state-query nil t)))
   (unless (member state-query komorebi-api-state-query)
