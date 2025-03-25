@@ -5,7 +5,7 @@
 ;; Author: Erich Raschle <erichraschle@gmail.com>
 ;; Maintainer: Erich Raschle <erichraschle@gmail.com>
 ;; Created: Oktober 07, 2024
-;; Modified: March 06, 2025
+;; Modified: March 25, 2025
 ;; Version: 0.0.2
 ;; Keywords: docs emulations extensions help languages lisp local processes
 ;; Homepage: https://github.com/eraschle/pyKomorebi
@@ -535,6 +535,17 @@ MOVE-BEHAVIOUR: Possible values:
   (unless (member move-behaviour komorebi-api-move-behaviour)
     (error "Invalid value for 'move-behaviour' %S" move-behaviour))
   (komorebi-api--execute "cross-monitor-move-behaviour" move-behaviour))
+
+
+;;;###autoload
+(defun komorebi-api-cycle-empty-workspace (cycle-direction)
+  "Focus the next empty workspace in the given cycle direction (if one exists).
+CYCLE-DIRECTION: Possible values: previous, next"
+  (interactive (list (completing-read "Enter value for CYCLE-DIRECTION: "
+                                      komorebi-api-cycle-direction nil t)))
+  (unless (member cycle-direction komorebi-api-cycle-direction)
+    (error "Invalid value for 'cycle-direction' %S" cycle-direction))
+  (komorebi-api--execute "cycle-empty-workspace" cycle-direction))
 
 
 ;;;###autoload
@@ -1753,6 +1764,14 @@ floating mode"
 
 
 ;;;###autoload
+(defun komorebi-api-toggle-window-based-work-area-offset ()
+  "Toggle application of the window-based work area offset for the focused
+workspace"
+  (interactive)
+  (komorebi-api--execute "toggle-window-based-work-area-offset"))
+
+
+;;;###autoload
 (defun komorebi-api-toggle-window-container-behaviour ()
   "Toggle the behaviour for new windows (stacking or dynamic tiling)."
   (interactive)
@@ -1767,6 +1786,13 @@ If there was no override value set for the workspace previously it takes the
 opposite of the global value"
   (interactive)
   (komorebi-api--execute "toggle-workspace-float-override"))
+
+
+;;;###autoload
+(defun komorebi-api-toggle-workspace-layer ()
+  "Toggle between the Tiling and Floating layers on the focused workspace."
+  (interactive)
+  (komorebi-api--execute "toggle-workspace-layer"))
 
 
 ;;;###autoload
