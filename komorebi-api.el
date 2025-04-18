@@ -5,7 +5,7 @@
 ;; Author: Erich Raschle <erichraschle@gmail.com>
 ;; Maintainer: Erich Raschle <erichraschle@gmail.com>
 ;; Created: Oktober 07, 2024
-;; Modified: March 25, 2025
+;; Modified: April 18, 2025
 ;; Version: 0.0.2
 ;; Keywords: docs emulations extensions help languages lisp local processes
 ;; Homepage: https://github.com/eraschle/pyKomorebi
@@ -126,7 +126,9 @@
                                        "focused-workspace-index"
                                        "focused-container-index"
                                        "focused-window-index"
-                                       "focused-workspace-name")
+                                       "focused-workspace-name"
+                                       "focused-workspace-layout"
+                                       "version")
   "List of possible values for `state-query'.")
 
 (defvar komorebi-api-style-animation (list "linear"
@@ -171,6 +173,7 @@
                                        "stack"
                                        "monocle"
                                        "unfocused"
+                                       "unfocused-locked"
                                        "floating")
   "List of possible values for `window-kind'.")
 
@@ -330,7 +333,7 @@ R:           Red.
 G:           Green.
 B:           Blue.
 WINDOW-KIND: Possible values: (default SINGLE)
-             single, stack, monocle, unfocused, floating"
+             single, stack, monocle, unfocused, unfocused-locked, floating"
   (interactive (list (read-number "R: Red:")
                      (read-number "G: Green:")
                      (read-number "B: Blue:")
@@ -436,6 +439,13 @@ WORKSPACE: Target workspace name."
 WORKSPACE: Name of a workspace."
   (interactive (list (read-string "WORKSPACE: Name of a workspace:")))
   (komorebi-api--execute "clear-named-workspace-rules" workspace))
+
+
+;;;###autoload
+(defun komorebi-api-clear-session-float-rules ()
+  "Clear all session float rules."
+  (interactive)
+  (komorebi-api--execute "clear-session-float-rules"))
 
 
 ;;;###autoload
@@ -679,6 +689,13 @@ CYCLE-DIRECTION: Possible values: previous, next"
   (unless (member cycle-direction komorebi-api-cycle-direction)
     (error "Invalid value for 'cycle-direction' %S" cycle-direction))
   (komorebi-api--execute "cycle-workspace" cycle-direction))
+
+
+;;;###autoload
+(defun komorebi-api-data-directory ()
+  "Show the path to komorebi's data directory in %LOCALAPPDATA%."
+  (interactive)
+  (komorebi-api--execute "data-directory"))
 
 
 ;;;###autoload
@@ -1175,6 +1192,13 @@ OPERATION-DIRECTION: Possible values: left, right, up, down"
 
 
 ;;;###autoload
+(defun komorebi-api-move-to-last-workspace ()
+  "Move the focused window to the last focused monitor workspace."
+  (interactive)
+  (komorebi-api--execute "move-to-last-workspace"))
+
+
+;;;###autoload
 (defun komorebi-api-move-to-monitor (target)
   "Move the focused window to the specified monitor.
 TARGET: Target index (zero-indexed)."
@@ -1368,7 +1392,7 @@ OVERRIDE-PATH: Optional YAML file of overrides to apply over the first file."
 STATE-QUERY: Possible values:
              focused-monitor-index, focused-workspace-index,
              focused-container-index, focused-window-index,
-             focused-workspace-name"
+             focused-workspace-name, focused-workspace-layout, version"
   (interactive (list (completing-read "Enter value for STATE-QUERY: "
                                       komorebi-api-state-query nil t)))
   (unless (member state-query komorebi-api-state-query)
@@ -1503,6 +1527,13 @@ PATH: File to which the resize layout dimensions should be saved."
 
 
 ;;;###autoload
+(defun komorebi-api-send-to-last-workspace ()
+  "Send the focused window to the last focused monitor workspace."
+  (interactive)
+  (komorebi-api--execute "send-to-last-workspace"))
+
+
+;;;###autoload
 (defun komorebi-api-send-to-monitor (target)
   "Send the focused window to the specified monitor.
 TARGET: Target index (zero-indexed)."
@@ -1537,6 +1568,20 @@ WORKSPACE: Target workspace name."
 TARGET: Target index (zero-indexed)."
   (interactive (list (read-number "TARGET: Target index (zero-indexed):")))
   (komorebi-api--execute "send-to-workspace" target))
+
+
+;;;###autoload
+(defun komorebi-api-session-float-rule ()
+  "Add a rule to float the foreground window for the rest of this session."
+  (interactive)
+  (komorebi-api--execute "session-float-rule"))
+
+
+;;;###autoload
+(defun komorebi-api-session-float-rules ()
+  "Show all session float rules."
+  (interactive)
+  (komorebi-api--execute "session-float-rules"))
 
 
 ;;;###autoload
@@ -1712,6 +1757,14 @@ TARGET: Target index (zero-indexed)."
 floating mode"
   (interactive)
   (komorebi-api--execute "toggle-float-override"))
+
+
+;;;###autoload
+(defun komorebi-api-toggle-lock ()
+  "Toggle a lock for the focused container, ensuring it will not be displaced by
+any new windows"
+  (interactive)
+  (komorebi-api--execute "toggle-lock"))
 
 
 ;;;###autoload
