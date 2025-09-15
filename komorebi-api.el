@@ -5,7 +5,7 @@
 ;; Author: Erich Raschle <erichraschle@gmail.com>
 ;; Maintainer: Erich Raschle <erichraschle@gmail.com>
 ;; Created: Oktober 07, 2024
-;; Modified: April 18, 2025
+;; Modified: September 15, 2025
 ;; Version: 0.0.2
 ;; Keywords: docs emulations extensions help languages lisp local processes
 ;; Homepage: https://github.com/eraschle/pyKomorebi
@@ -128,6 +128,7 @@
                                        "focused-window-index"
                                        "focused-workspace-name"
                                        "focused-workspace-layout"
+                                       "focused-container-kind"
                                        "version")
   "List of possible values for `state-query'.")
 
@@ -1392,7 +1393,8 @@ OVERRIDE-PATH: Optional YAML file of overrides to apply over the first file."
 STATE-QUERY: Possible values:
              focused-monitor-index, focused-workspace-index,
              focused-container-index, focused-window-index,
-             focused-workspace-name, focused-workspace-layout, version"
+             focused-workspace-name, focused-workspace-layout,
+             focused-container-kind, version"
   (interactive (list (completing-read "Enter value for STATE-QUERY: "
                                       komorebi-api-state-query nil t)))
   (unless (member state-query komorebi-api-state-query)
@@ -1793,6 +1795,13 @@ any new windows"
   "Toggle window tiling on the focused workspace."
   (interactive)
   (komorebi-api--execute "toggle-pause"))
+
+
+;;;###autoload
+(defun komorebi-api-toggle-shortcuts ()
+  "Toggle the komorebi-shortcuts helper."
+  (interactive)
+  (komorebi-api--execute "toggle-shortcuts"))
 
 
 ;;;###autoload
